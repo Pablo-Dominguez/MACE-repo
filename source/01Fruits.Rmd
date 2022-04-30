@@ -1,0 +1,107 @@
+---
+title: "Fruits"
+author: "Pablo Dominguez"
+date: '2022-04-22'
+output: html_document
+---
+
+```{r message = FALSE}
+library(readxl)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(ggpubr)
+library(pastecs)
+```
+
+```{css style settings, echo = FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 12px;
+    border-left: 5px solid #eee;
+}
+```
+
+# Entrega MACE bloque 2
+
+## Introducción
+
+Por su riqueza en proteínas, carbohidratos, lípidos y minerales las semillas de calabaza son un producto que llega a ser consumido a lo largo de países en todo el mundo. Los factores que determinan el tipo concreto de cada semilla son generalmente relativos a la apariencia externa de la misma. Distinguir el tipo de cada semilla suele requerir experiencia y tiempo, cosa que en nuestro mundo moderno se traduce como un coste económico. 
+
+Con el objetivo de aportar una nueva manera de realizar esta tarea, nos proponemos plantear un algoritmo de clasificación binaria tipo `SVM` que, a partir de la base de datos `Pumpkin_Seeds_Dataset.xlsx`, distinga entre dos categorías diferentes de semillas de calabaza.
+
+Así pues, comenzaremos este estudio con un análisis exploratorio de los datos, para seguir con una construcción de un clasificador a partir de este algoritmo y acabar con una evaluación de los diferentes resultados obtenidos.
+
+## Base de datos
+
+### Presentación de los datos
+
+
+
+Tal y como se muestra a continuación, tenemos las dos categorías balanceadas de semillas de calabaza *Çerçevelik* y *Ürgüp Sivrisi*: 
+
+```{r }
+df <- readxl::read_excel("../Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
+table(df$Class)
+```
+
+> Citation Request :
+KOKLU, M., SARIGIL, S., & OZBEK, O. (2021). The use of machine learning methods in classification of pumpkin seeds (Cucurbita pepo L.). Genetic Resources and Crop Evolution, 68(7), 2713-2726. Doi: https://doi.org/10.1007/s10722-021-01226-0
+
+> Puedes conseguir la base de datos en [este enlace](https://www.muratkoklu.com/datasets/Pumpkin_Seeds_Dataset.zip).
+
+
+
+### Variables a considerar
+
+En el caso de nuestro estudio, salvo que alguna de las variables tenga poca calidad de dato e introduzca ruido, conservaremos todas para que el modelo disponga de la mayor cantidad de información. El significado de las variables de las que disponemos es por lo general evidente a partir del nombre de la misma. Mostramos a continuación la lista de variables que se han medido para cada muestra, así como el tipo de cada variable en nuestra base de datos:
+
+```{r}
+df %>% sapply(class) %>% kable(.,col.names = c("Tipo"))
+```
+
+Para continuar con el estudio, analizaremos los valores faltantes y los outliers o valores atípicos, así como presentaremos histogramas comparativos de cada variable  para cada tipo de semilla.
+
+### Calidad del dato
+
+En cuanto a los valores faltantes, tenemos la siguiente información:
+
+```{r}
+for(col in df %>% colnames()){
+  print(paste0("Hay ",df[col] %>% is.na() %>% sum()," valores faltantes y ",df[col] %>% is.null() %>% sum()," valores nulos en la columna ",col))
+}
+```
+
+Con lo cual, afortunadamente no tenemos que preocuparnos por técnicas de sustitución o eliminación de valores faltantes o nulos, gracias a que la base de datos está completa.
+Comprobemos ahora los valores atípicos. Para ello, pasaremos a presentar un diagrama de cajas y bigotes para cada variable junto con diagramas tipo violin, así como un conteo de este tipo de valores. De este modo, tendremos una mejor visión de la distribución de las variables para cada caso.
+
+```{r out.width="100%"}
+ps <- list()
+for(colu in df %>% colnames() %>% setdiff(.,"Class")){
+  p <- ggplot(df, aes_string(x="Class", y=colu, color="Class")) + geom_violin() + geom_boxplot(width=0.25) + stat_boxplot(geom = "errorbar", width = 0.2) + theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6),
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8),
+    legend.key.size = unit(0.1, 'cm'),
+    legend.text = element_text(size=8),
+    legend.title = element_blank())
+  ps[[colu]] <- p
+}
+ggarrange(plotlist =  ps, nrow = 4,ncol = 3,common.legend = TRUE)
+```
+
+Así mismo, (Explicación de los outliers).
+
+```{r}
+# Poner nombre primeras columnas (footnote)
+col_numeric <- which( sapply(df, is.numeric ) )   # Seleccionamos solamente las columnas numéricas.
+quantile_df <- sapply(col_numeric, function( y ) {
+                      quantile( x = unlist( df[,  y ] ), c(.25,.5,.75))
+                      }) %>% as.data.frame()
+rownames(quantile_df) <- c("Q1","Q2","Q3")
+
+stat.desc(df[,1:floor(ncol(df)/2)]) %>% slice(., 4:ncol(df)) %>% bind_rows(.,quantile_df[,1:floor(ncol(df)/2)]) %>% kable(., format = "markdown")
+```
+
