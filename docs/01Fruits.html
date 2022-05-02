@@ -553,148 +553,36 @@ quantile_df &lt;- sapply(col_numeric, function( y ) {
                       }) %&gt;% as.data.frame()
 rownames(quantile_df) &lt;- c(&quot;Q1&quot;,&quot;Q2&quot;,&quot;Q3&quot;)
 
-stat.desc(df[,1:floor(ncol(df)/2)]) %&gt;% slice(., 4:ncol(df)) %&gt;% bind_rows(.,quantile_df[,1:floor(ncol(df)/2)]) %&gt;% kable(., format = &quot;markdown&quot;)</code></pre>
-<table>
-<colgroup>
-<col width="12%" />
-<col width="12%" />
-<col width="12%" />
-<col width="17%" />
-<col width="17%" />
-<col width="12%" />
-<col width="14%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th align="left"></th>
-<th align="right">Area</th>
-<th align="right">Perimeter</th>
-<th align="right">Major_Axis_Length</th>
-<th align="right">Minor_Axis_Length</th>
-<th align="right">Convex_Area</th>
-<th align="right">Equiv_Diameter</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td align="left">min</td>
-<td align="right">4.793900e+04</td>
-<td align="right">8.684850e+02</td>
-<td align="right">3.208446e+02</td>
-<td align="right">1.521718e+02</td>
-<td align="right">4.836600e+04</td>
-<td align="right">2.470584e+02</td>
-</tr>
-<tr class="even">
-<td align="left">max</td>
-<td align="right">1.365740e+05</td>
-<td align="right">1.559450e+03</td>
-<td align="right">6.619113e+02</td>
-<td align="right">3.058180e+02</td>
-<td align="right">1.383840e+05</td>
-<td align="right">4.170029e+02</td>
-</tr>
-<tr class="odd">
-<td align="left">range</td>
-<td align="right">8.863500e+04</td>
-<td align="right">6.909650e+02</td>
-<td align="right">3.410667e+02</td>
-<td align="right">1.536462e+02</td>
-<td align="right">9.001800e+04</td>
-<td align="right">1.699445e+02</td>
-</tr>
-<tr class="even">
-<td align="left">sum</td>
-<td align="right">2.016456e+08</td>
-<td align="right">2.825698e+06</td>
-<td align="right">1.141505e+06</td>
-<td align="right">5.644873e+05</td>
-<td align="right">2.037702e+08</td>
-<td align="right">7.983356e+05</td>
-</tr>
-<tr class="odd">
-<td align="left">median</td>
-<td align="right">7.907600e+04</td>
-<td align="right">1.123672e+03</td>
-<td align="right">4.494966e+02</td>
-<td align="right">2.247031e+02</td>
-<td align="right">7.987200e+04</td>
-<td align="right">3.173053e+02</td>
-</tr>
-<tr class="even">
-<td align="left">mean</td>
-<td align="right">8.065822e+04</td>
-<td align="right">1.130279e+03</td>
-<td align="right">4.566018e+02</td>
-<td align="right">2.257949e+02</td>
-<td align="right">8.150808e+04</td>
-<td align="right">3.193342e+02</td>
-</tr>
-<tr class="odd">
-<td align="left">SE.mean</td>
-<td align="right">2.732902e+02</td>
-<td align="right">2.185128e+00</td>
-<td align="right">1.124714e+00</td>
-<td align="right">4.659449e-01</td>
-<td align="right">2.752819e+02</td>
-<td align="right">5.378384e-01</td>
-</tr>
-<tr class="even">
-<td align="left">CI.mean.0.95</td>
-<td align="right">5.358985e+02</td>
-<td align="right">4.284848e+00</td>
-<td align="right">2.205467e+00</td>
-<td align="right">9.136777e-01</td>
-<td align="right">5.398040e+02</td>
-<td align="right">1.054655e+00</td>
-</tr>
-<tr class="odd">
-<td align="left">var</td>
-<td align="right">1.867188e+08</td>
-<td align="right">1.193696e+04</td>
-<td align="right">3.162454e+03</td>
-<td align="right">5.427616e+02</td>
-<td align="right">1.894503e+08</td>
-<td align="right">7.231753e+02</td>
-</tr>
-<tr class="even">
-<td align="left">std.dev</td>
-<td align="right">1.366451e+04</td>
-<td align="right">1.092564e+02</td>
-<td align="right">5.623570e+01</td>
-<td align="right">2.329724e+01</td>
-<td align="right">1.376409e+04</td>
-<td align="right">2.689192e+01</td>
-</tr>
-<tr class="odd">
-<td align="left">Q1</td>
-<td align="right">7.076500e+04</td>
-<td align="right">1.048830e+03</td>
-<td align="right">4.149579e+02</td>
-<td align="right">2.112459e+02</td>
-<td align="right">7.151200e+04</td>
-<td align="right">3.001680e+02</td>
-</tr>
-<tr class="even">
-<td align="left">Q2</td>
-<td align="right">7.907600e+04</td>
-<td align="right">1.123672e+03</td>
-<td align="right">4.494966e+02</td>
-<td align="right">2.247031e+02</td>
-<td align="right">7.987200e+04</td>
-<td align="right">3.173053e+02</td>
-</tr>
-<tr class="odd">
-<td align="left">Q3</td>
-<td align="right">8.975750e+04</td>
-<td align="right">1.203341e+03</td>
-<td align="right">4.927376e+02</td>
-<td align="right">2.406729e+02</td>
-<td align="right">9.079775e+04</td>
-<td align="right">3.380574e+02</td>
-</tr>
-</tbody>
-</table>
+desc_df1 &lt;- stat.desc(df[,1:floor(ncol(df)/2)]) %&gt;% slice(., 4:ncol(df)) %&gt;% bind_rows(.,quantile_df[,1:floor(ncol(df)/2)]) 
+
+temp_df &lt;- data.frame(row.names = &#39;perc.out&#39;)
+colnames(temp_df) &lt;- colnames(df)
+out_df &lt;- for(col in colnames(df)){
+  top_IQR &lt;- quantile_df[col][[1]][3]
+  bot_IQR &lt;- quantile_df[col][[1]][1]
+  df %&gt;% select_if(is.numeric)
+}
+
+Q1 &lt;- quantile_df[&#39;Q1&#39;,] %&gt;% as.vector() %&gt;% as.numeric()
+Q3 &lt;- quantile_df[&#39;Q3&#39;,] %&gt;% as.vector() %&gt;% as.numeric()
+top_IQR &lt;- Q3+1.5*(Q3-Q1)
+bot_IQR &lt;- Q1-1.5*(Q3-Q1)
+count_top_out &lt;- (df&gt;=top_IQR) %&gt;% as.data.frame() %&gt;% summarise(across(everything(), sum)) %&gt;% as.vector() %&gt;% as.numeric()
+count_bot_out &lt;- (df&lt;=bot_IQR) %&gt;% as.data.frame() %&gt;% summarise(across(everything(), sum)) %&gt;% as.vector() %&gt;% as.numeric()
+perc_out &lt;- (count_top_out+count_bot_out)/(df[col] %&gt;% nrow())
+
+
+# %&gt;% kable(., format = &quot;markdown&quot;)</code></pre>
+</div>
+</div>
+<div id="modelización-con-svm" class="section level2">
+<h2>Modelización con <code>SVM</code></h2>
+<div id="modelización-inicial" class="section level3">
+<h3>Modelización inicial</h3>
+</div>
+<div id="propuesta-de-mejora-con-menos-variables-estudiar-correlación." class="section level3">
+<h3>Propuesta de mejora con menos variables –&gt; Estudiar
+correlación.</h3>
 </div>
 </div>
 </div>

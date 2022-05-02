@@ -3,6 +3,8 @@ title: "Fruits"
 author: "Pablo Dominguez"
 date: '2022-04-22'
 output: html_document
+params:
+  output_dir: "/home/pablo/Documents/MUM/MACE/2ndo Bloque/Entrega/docs"
 ---
 
 ```{r message = FALSE}
@@ -94,7 +96,7 @@ ggarrange(plotlist =  ps, nrow = 4,ncol = 3,common.legend = TRUE)
 
 Así mismo, (Explicación de los outliers).
 
-```{r}
+```{r eval=FALSE}
 # Poner nombre primeras columnas (footnote)
 col_numeric <- which( sapply(df, is.numeric ) )   # Seleccionamos solamente las columnas numéricas.
 quantile_df <- sapply(col_numeric, function( y ) {
