@@ -3,8 +3,6 @@ title: "Fruits"
 author: "Pablo Dominguez"
 date: '2022-04-22'
 output: html_document
-params:
-  output_dir: "/home/pablo/Documents/MUM/MACE/2ndo Bloque/Entrega/docs"
 ---
 
 ```{r message = FALSE}
@@ -44,7 +42,7 @@ Así pues, comenzaremos este estudio con un análisis exploratorio de los datos,
 Tal y como se muestra a continuación, tenemos las dos categorías balanceadas de semillas de calabaza *Çerçevelik* y *Ürgüp Sivrisi*: 
 
 ```{r }
-df <- readxl::read_excel("../Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
+df <- readxl::read_excel("../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
 table(df$Class)
 ```
 
