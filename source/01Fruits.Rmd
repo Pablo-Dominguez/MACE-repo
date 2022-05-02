@@ -2,7 +2,13 @@
 title: "Fruits"
 author: "Pablo Dominguez"
 date: '2022-04-22'
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    css: style.css
 ---
 
 ```{r message = FALSE}
@@ -12,6 +18,7 @@ library(knitr)
 library(ggplot2)
 library(ggpubr)
 library(pastecs)
+library(kableExtra)
 ```
 
 ```{css style settings, echo = FALSE}
@@ -42,6 +49,7 @@ Así pues, comenzaremos este estudio con un análisis exploratorio de los datos,
 Tal y como se muestra a continuación, tenemos las dos categorías balanceadas de semillas de calabaza *Çerçevelik* y *Ürgüp Sivrisi*: 
 
 ```{r }
+options(scipen=999) # desactivamos la notación científica
 df <- readxl::read_excel("../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
 table(df$Class)
 ```
@@ -94,34 +102,87 @@ ggarrange(plotlist =  ps, nrow = 4,ncol = 3,common.legend = TRUE)
 
 Así mismo, (Explicación de los outliers).
 
-```{r eval=FALSE}
+Calculamos en primer lugar los estadísticos principales para cada categoría.
+
+```{r}
 # Poner nombre primeras columnas (footnote)
-col_numeric <- which( sapply(df, is.numeric ) )   # Seleccionamos solamente las columnas numéricas.
-quantile_df <- sapply(col_numeric, function( y ) {
-                      quantile( x = unlist( df[,  y ] ), c(.25,.5,.75))
+
+# Definimos un df para cada categoría
+
+cat.vec <- df$Class %>% table() %>% names()
+df_class01 <- df %>% filter(.,Class == cat.vec[1]) # Çerçevelik
+df_class02 <- df %>% filter(.,Class == cat.vec[2]) # Ürgüp Sivrisi
+
+# Calculamos los cuantiles para cada clase
+
+## Clase 1
+
+col_numeric <- which( sapply(df_class01, is.numeric ) ) # Creamos un selector de las columnas numéricas
+quantile_df01 <- sapply(col_numeric, function( y ) {
+                      quantile( x = unlist( df_class01[,  y ] ), c(.25,.5,.75))
                       }) %>% as.data.frame()
-rownames(quantile_df) <- c("Q1","Q2","Q3")
+rownames(quantile_df01) <- c("Q1","Q2","Q3")
 
-desc_df1 <- stat.desc(df[,1:floor(ncol(df)/2)]) %>% slice(., 4:ncol(df)) %>% bind_rows(.,quantile_df[,1:floor(ncol(df)/2)]) 
+## Clase 2
 
-temp_df <- data.frame(row.names = 'perc.out')
-colnames(temp_df) <- colnames(df)
-out_df <- for(col in colnames(df)){
-  top_IQR <- quantile_df[col][[1]][3]
-  bot_IQR <- quantile_df[col][[1]][1]
-  df %>% select_if(is.numeric)
-}
+col_numeric <- which( sapply(df_class02, is.numeric ) ) # Creamos un selector de las columnas numéricas
+quantile_df02 <- sapply(col_numeric, function( y ) {
+                      quantile( x = unlist( df_class02[,  y ] ), c(.25,.5,.75))
+                      }) %>% as.data.frame()
+rownames(quantile_df02) <- c("Q1","Q2","Q3")
 
-Q1 <- quantile_df['Q1',] %>% as.vector() %>% as.numeric()
-Q3 <- quantile_df['Q3',] %>% as.vector() %>% as.numeric()
-top_IQR <- Q3+1.5*(Q3-Q1)
+# Calculamos el % de outliers para cada clase
+
+## Clase 1
+
+Q1 <- quantile_df01['Q1',] %>% as.vector() %>% as.numeric()
+Q3 <- quantile_df01['Q3',] %>% as.vector() %>% as.numeric()
+top_IQR <- Q3+1.5*(Q3-Q1) #111027.750000
 bot_IQR <- Q1-1.5*(Q3-Q1)
-count_top_out <- (df>=top_IQR) %>% as.data.frame() %>% summarise(across(everything(), sum)) %>% as.vector() %>% as.numeric()
-count_bot_out <- (df<=bot_IQR) %>% as.data.frame() %>% summarise(across(everything(), sum)) %>% as.vector() %>% as.numeric()
-perc_out <- (count_top_out+count_bot_out)/(df[col] %>% nrow())
+k <- 1
+perc_out01 <- c()
+for(col in head(colnames(df_class01),-1)){
+  count_top_out <- df_class01[col]>=top_IQR[k] %>% as.vector()
+  count_bot_out <- df_class01[col]<=bot_IQR[k] %>% as.vector()
+  perc_out01 <- c(perc_out01,100*(sum(count_top_out)+sum(count_bot_out))/(df_class01 %>% nrow()))
+  k <- k+1
+} # el vector perc_out representa el porcentaje de outliers de cada variable.
+
+## Clase 2
+
+Q1 <- quantile_df02['Q1',] %>% as.vector() %>% as.numeric()
+Q3 <- quantile_df02['Q3',] %>% as.vector() %>% as.numeric()
+top_IQR <- Q3+1.5*(Q3-Q1) 
+bot_IQR <- Q1-1.5*(Q3-Q1)
+k <- 1
+perc_out02 <- c()
+for(col in head(colnames(df_class02),-1)){
+  count_top_out <- df_class02[col]>=top_IQR[k] %>% as.vector()
+  count_bot_out <- df_class02[col]<=bot_IQR[k] %>% as.vector()
+  perc_out02 <- c(perc_out02,100*(sum(count_top_out)+sum(count_bot_out))/(df_class02 %>% nrow()))
+  k <- k+1
+} # el vector perc_out representa el porcentaje de outliers de cada variable.
 
 
-# %>% kable(., format = "markdown")
+# Creamos el df final con todos los estadísticos para cada clase
+
+## Calculamos los estadísticos para la clase 1
+
+desc_df01 <- stat.desc(df_class01[,-which(names(df_class01) == "Class")]) %>% slice(., c(4,5,8,9,10,13))  
+
+## Añadimos los porcentajes de outliers para el dataframe de la clase 1
+
+perc_out_class01 <- data.frame(t(perc_out01))
+colnames(perc_out_class01) <-  colnames(desc_df01)
+rownames(perc_out_class01) <- c("perc.out") #
+
+fn1='Más información sobre los principales estadísticos en ?pastecs::stat.desc.'
+#fn2='This is footnote 2 and is much longer'
+
+desc_class01 <- desc_df01 %>%  bind_rows(.,perc_out_class01)
+desc_class01  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
+  footnote(c(fn1), general_title="Estadísticos Clase Çerçevelik", title_format = "bold") %>%  scroll_box(width = "auto")
+# df %>% kable(., format = "markdown",caption = "This is the table caption")
 ```
 
 ## Modelización con `SVM`

@@ -1,0 +1,12 @@
+tfoot {
+  font-size: 80%;
+  float: right;
+  text-align: left;
+  border-top: 3px solid grey;
+  border-bottom: 3px solid grey;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
