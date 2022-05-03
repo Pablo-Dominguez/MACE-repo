@@ -1,5 +1,5 @@
 ---
-title: "Fruits"
+title: "Seeds"
 author: "Pablo Dominguez"
 date: '2022-04-22'
 output:
@@ -9,6 +9,7 @@ output:
     toc_float: true
     collapsed: true
     css: style.css
+    code_folding: hide
 ---
 
 ```{r message = FALSE}
@@ -44,11 +45,9 @@ Así pues, comenzaremos este estudio con un análisis exploratorio de los datos,
 
 ### Presentación de los datos
 
-
-
 Tal y como se muestra a continuación, tenemos las dos categorías balanceadas de semillas de calabaza *Çerçevelik* y *Ürgüp Sivrisi*: 
 
-```{r }
+```{r class.source = 'fold-show'}
 options(scipen=999) # desactivamos la notación científica
 df <- readxl::read_excel("../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
 table(df$Class)
@@ -82,7 +81,7 @@ for(col in df %>% colnames()){
 ```
 
 Con lo cual, afortunadamente no tenemos que preocuparnos por técnicas de sustitución o eliminación de valores faltantes o nulos, gracias a que la base de datos está completa.
-Comprobemos ahora los valores atípicos. Para ello, pasaremos a presentar un diagrama de cajas y bigotes para cada variable junto con diagramas tipo violin, así como un conteo de este tipo de valores. De este modo, tendremos una mejor visión de la distribución de las variables para cada caso.
+Comprobemos ahora los valores atípicos. Para ello, pasaremos a presentar un diagrama de cajas y bigotes para cada variable junto con diagramas tipo violin, así como el porcentaje de este tipo de valores junto con los principales estadísticos. De este modo, tendremos una mejor visión de la distribución y el comportamiento de las variables para cada clase de semilla.
 
 ```{r out.width="100%"}
 ps <- list()
@@ -100,12 +99,15 @@ for(colu in df %>% colnames() %>% setdiff(.,"Class")){
 ggarrange(plotlist =  ps, nrow = 4,ncol = 3,common.legend = TRUE)
 ```
 
-Así mismo, (Explicación de los outliers).
+Así mismo, existen tres aproximaciones estándar a la hora de tratar este tipo de valores:
 
-Calculamos en primer lugar los estadísticos principales para cada categoría.
+1. **Eliminar los outliers**. Esta técnica se recomienda cuando el porcentaje de outliers es muy alto, usualmente en torno al 10%. El motivo de emplear esta técnica es que si un dato tiene muchos outliers, es probable que sean debidos a ruido o mala calidad del dato.
+2. **Capado de los outliers**. Se limita el valor máximo y mínimo posible que pueden tomar los valores a dos percentiles dados, por ejemplo al percentil 10 y al 90. Esta técnica es preferible a la anterior por resultar menos agresiva a la hora de impartar sobre el resto de estadísticos.
+3. **Sustitución de outliers**. Finalmente, existe la técnica de sustituir los outliers por la mediana. 
+
+A continuación, calculamos los estadísticos principales para cada categoría.
 
 ```{r}
-# Poner nombre primeras columnas (footnote)
 
 # Definimos un df para cada categoría
 
@@ -119,17 +121,17 @@ df_class02 <- df %>% filter(.,Class == cat.vec[2]) # Ürgüp Sivrisi
 
 col_numeric <- which( sapply(df_class01, is.numeric ) ) # Creamos un selector de las columnas numéricas
 quantile_df01 <- sapply(col_numeric, function( y ) {
-                      quantile( x = unlist( df_class01[,  y ] ), c(.25,.5,.75))
+                      quantile( x = unlist( df_class01[,  y ] ), c(.1,.25,.5,.75,.9))
                       }) %>% as.data.frame()
-rownames(quantile_df01) <- c("Q1","Q2","Q3")
+rownames(quantile_df01) <- c("P10","Q1","Q2","Q3","P90")
 
 ## Clase 2
 
 col_numeric <- which( sapply(df_class02, is.numeric ) ) # Creamos un selector de las columnas numéricas
 quantile_df02 <- sapply(col_numeric, function( y ) {
-                      quantile( x = unlist( df_class02[,  y ] ), c(.25,.5,.75))
+                      quantile( x = unlist( df_class02[,  y ] ), c(.1,.25,.5,.75,.9))
                       }) %>% as.data.frame()
-rownames(quantile_df02) <- c("Q1","Q2","Q3")
+rownames(quantile_df02) <- c("P10","Q1","Q2","Q3","P90")
 
 # Calculamos el % de outliers para cada clase
 
@@ -176,14 +178,134 @@ perc_out_class01 <- data.frame(t(perc_out01))
 colnames(perc_out_class01) <-  colnames(desc_df01)
 rownames(perc_out_class01) <- c("perc.out") #
 
-fn1='Más información sobre los principales estadísticos en ?pastecs::stat.desc.'
-#fn2='This is footnote 2 and is much longer'
+fn1='Más información sobre los principales estadísticos en `?pastecs::stat.desc`.'
+fn2='`perc.out`: Es el porcentaje de outliers para cada variable, según el [criterio de Tukey](https://es.wikipedia.org/wiki/Diagrama_de_caja).'
 
 desc_class01 <- desc_df01 %>%  bind_rows(.,perc_out_class01)
 desc_class01  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
-  footnote(c(fn1), general_title="Estadísticos Clase Çerçevelik", title_format = "bold") %>%  scroll_box(width = "auto")
-# df %>% kable(., format = "markdown",caption = "This is the table caption")
+  footnote(number=c(fn1,fn2), number_title="Estadísticos Clase Çerçevelik", title_format = "bold") %>%  scroll_box(width = "auto")
+
+## Calculamos los estadísticos para la clase 2
+
+desc_df02 <- stat.desc(df_class02[,-which(names(df_class02) == "Class")]) %>% slice(., c(4,5,8,9,10,13))  
+
+## Añadimos los porcentajes de outliers para el dataframe de la clase 2
+
+perc_out_class02 <- data.frame(t(perc_out02))
+colnames(perc_out_class02) <-  colnames(desc_df02)
+rownames(perc_out_class02) <- c("perc.out") #
+
+desc_class02 <- desc_df02 %>%  bind_rows(.,perc_out_class02)
+desc_class02  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
+  footnote(c(""),general_title="Estadísticos Clase Ürgüp Sivrisi", title_format = "bold") %>%  scroll_box(width = "auto")
 ```
+
+<br>
+Dado que en ambas categorías la variable que mayor porcentaje de outliers presenta es la `Solidity` con un 4% de outliers,vamos a proceder a sustituirlos por el percentil 10 y el 90, respectivamente y a volver a calcular los estadísticos para comparar si hemos modificado en gran medida la estructura de las variables.
+
+
+```{r}
+
+# Reemplazamos los outliers para cada clase
+
+## Clase 1
+
+Q1 <- quantile_df01['Q1',] %>% as.vector() %>% as.numeric()
+Q3 <- quantile_df01['Q3',] %>% as.vector() %>% as.numeric()
+P10 <- quantile_df01['P10',] %>% as.vector() %>% as.numeric()
+P90 <- quantile_df01['P90',] %>% as.vector() %>% as.numeric()
+top_IQR <- Q3+1.5*(Q3-Q1) #111027.750000
+bot_IQR <- Q1-1.5*(Q3-Q1)
+
+trimmed_df_class01 <- data.frame(df_class01)
+perc_out01 <- c()
+perc_mod01 <- c()
+for(i in 1:(ncol(trimmed_df_class01)-1)) { 
+  top_mod <- trimmed_df_class01[ , i][trimmed_df_class01[ , i] <= bot_IQR[i]]%>% length()
+  bot_mod <- trimmed_df_class01[ , i][trimmed_df_class01[ , i] >= top_IQR[i]]%>% length()
+  
+  trimmed_df_class01[ , i][trimmed_df_class01[ , i] <= bot_IQR[i]] <- P10[i]
+  trimmed_df_class01[ , i][trimmed_df_class01[ , i] >= top_IQR[i]] <- P90[i]
+  
+  count_top_out <- trimmed_df_class01[ , i]>=top_IQR[i] %>% as.vector()
+  count_bot_out <- trimmed_df_class01[ , i]<=bot_IQR[i] %>% as.vector()
+  
+  perc_out01 <- c(perc_out01,100*(sum(count_top_out)+sum(count_bot_out))/(trimmed_df_class01 %>% nrow()))
+  perc_mod01 <- c(perc_mod01,100*(top_mod+bot_mod)/(trimmed_df_class01 %>% nrow()))
+  
+}# el vector perc_out representa el porcentaje de outliers de cada variable.
+
+## Clase 2
+
+Q1 <- quantile_df02['Q1',] %>% as.vector() %>% as.numeric()
+Q3 <- quantile_df02['Q3',] %>% as.vector() %>% as.numeric()
+P10 <- quantile_df02['P10',] %>% as.vector() %>% as.numeric()
+P90 <- quantile_df02['P90',] %>% as.vector() %>% as.numeric()
+top_IQR <- Q3+1.5*(Q3-Q1) #111027.750000
+bot_IQR <- Q1-1.5*(Q3-Q1)
+
+trimmed_df_class02 <- data.frame(df_class02)
+perc_out02 <- c()
+perc_mod02 <- c()
+for(i in 1:(ncol(trimmed_df_class02)-1)) { 
+  top_mod <- trimmed_df_class02[ , i][trimmed_df_class02[ , i] <= bot_IQR[i]]%>% length()
+  bot_mod <- trimmed_df_class02[ , i][trimmed_df_class02[ , i] >= top_IQR[i]]%>% length()
+  
+  trimmed_df_class02[ , i][trimmed_df_class02[ , i] <= bot_IQR[i]] <- P10[i]
+  trimmed_df_class02[ , i][trimmed_df_class02[ , i] >= top_IQR[i]] <- P90[i]
+  
+  count_top_out <- trimmed_df_class02[ , i]>=top_IQR[i] %>% as.vector()
+  count_bot_out <- trimmed_df_class02[ , i]<=bot_IQR[i] %>% as.vector()
+  
+  perc_out02 <- c(perc_out02,100*(sum(count_top_out)+sum(count_bot_out))/(trimmed_df_class02 %>% nrow()))
+  perc_mod02 <- c(perc_mod02,100*(top_mod+bot_mod)/(trimmed_df_class02 %>% nrow()))
+  
+}# el vector perc_out representa el porcentaje de outliers de cada variable.
+
+# Creamos el df final con todos los estadísticos para cada clase
+
+## Calculamos los estadísticos para la clase 1
+
+desc_df01 <- stat.desc(trimmed_df_class01[,-which(names(trimmed_df_class01) == "Class")]) %>% slice(., c(4,5,8,9,10,13))  
+
+## Añadimos los porcentajes de outliers y el porcentaje de valores modificados para el dataframe de la clase 1
+
+perc_out_class01 <- data.frame(t(perc_out01))
+colnames(perc_out_class01) <-  colnames(desc_df01)
+rownames(perc_out_class01) <- c("perc.out") #
+
+perc_mod_class01 <- data.frame(t(perc_mod01))
+colnames(perc_mod_class01) <-  colnames(desc_df01)
+rownames(perc_mod_class01) <- c("perc.mod") #
+
+fn2='`perc.mod`: Es el porcentaje de valores modificados para cada variable.'
+
+desc_class01 <- desc_df01 %>%  bind_rows(.,perc_out_class01) %>% bind_rows(.,perc_mod_class01)
+desc_class01  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
+  footnote(number=c(fn2), number_title ="Estadísticos Clase Çerçevelik - Modificado", title_format = "bold") %>%  scroll_box(width = "auto")
+
+## Calculamos los estadísticos para la clase 2
+
+desc_df02 <- stat.desc(trimmed_df_class02[,-which(names(trimmed_df_class02) == "Class")]) %>% slice(., c(4,5,8,9,10,13))  
+
+## Añadimos los porcentajes de outliers para el dataframe de la clase 2
+
+perc_out_class02 <- data.frame(t(perc_out02))
+colnames(perc_out_class02) <-  colnames(desc_df02)
+rownames(perc_out_class02) <- c("perc.out") #
+
+perc_mod_class02 <- data.frame(t(perc_mod02))
+colnames(perc_mod_class02) <-  colnames(desc_df02)
+rownames(perc_mod_class02) <- c("perc.mod") #
+
+desc_class02 <- desc_df02 %>%  bind_rows(.,perc_out_class02)%>% bind_rows(.,perc_mod_class02)
+desc_class02  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
+  footnote(c(""),general_title="Estadísticos Clase Ürgüp Sivrisi - Modificado", title_format = "bold") %>%  scroll_box(width = "auto")
+
+```
+
+<br>
+Como se puede observar respectivamente en cada tabla, hemos eliminado en todos los casos los outliers al tiempo que no hemos afectado significativamente el resto de estadísticos. Emplearemos por tanto esta base de datos modificada como base de datos de partida para el proceso del modelado de los datos.
 
 ## Modelización con `SVM`
 
@@ -191,4 +313,3 @@ desc_class01  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
 
 ### Propuesta de mejora con menos variables --> Estudiar correlación.
 
-Maria hueles a culo
