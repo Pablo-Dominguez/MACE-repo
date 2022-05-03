@@ -191,3 +191,4 @@ desc_class01  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
 
 ### Propuesta de mejora con menos variables --> Estudiar correlación.
 
+Maria hueles a culo
