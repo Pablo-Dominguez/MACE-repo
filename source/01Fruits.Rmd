@@ -10,6 +10,8 @@ output:
     collapsed: true
     css: style.css
     code_folding: hide
+    includes:
+      in_header: header.html
 ---
 
 ```{r message = FALSE}
