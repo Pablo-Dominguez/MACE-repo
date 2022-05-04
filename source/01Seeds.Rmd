@@ -1,7 +1,7 @@
 ---
 title: "Seeds"
 author: "Pablo Dominguez"
-date: '2022-04-22'
+date: '`r Sys.Date()`'
 output:
   html_document:
     toc: true
@@ -22,6 +22,7 @@ library(ggplot2)
 library(ggpubr)
 library(pastecs)
 library(kableExtra)
+library (e1071)
 ```
 
 ```{css style settings, echo = FALSE}
@@ -32,6 +33,8 @@ blockquote {
     border-left: 5px solid #eee;
 }
 ```
+
+La información completa sobre la generación de este documento puede encontrarse en este [repositorio de GitHub](https://github.com/Pablo-Dominguez/MACE-repo).
 
 # Entrega MACE bloque 2
 
@@ -309,9 +312,93 @@ desc_class02  %>% kbl() %>% kable_minimal("hover", full_width = F)%>%
 <br>
 Como se puede observar respectivamente en cada tabla, hemos eliminado en todos los casos los outliers al tiempo que no hemos afectado significativamente el resto de estadísticos. Emplearemos por tanto esta base de datos modificada como base de datos de partida para el proceso del modelado de los datos.
 
+```{r class.source = 'fold-show'}
+# Creación de la base de datos para el modelado.
+df_final <- trimmed_df_class01 %>% bind_rows(.,trimmed_df_class02)
+```
+
+
 ## Modelización con `SVM`
 
 ### Modelización inicial
+
+En primer lugar, debemos configurar la variable `Class` para que nuestro modelo la considere como un factor.
+
+```{r class.source = 'fold-show'}
+df_final$Class <- as.factor(df_final$Class)
+```
+
+A continuación, vamos a crear una serie de modelos con los que iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno para cada tipo de kernel, con un vector inicial de costes con los valores `0.001, 0.01, 0.1, 1, 5, 10, 100` y 10 pliegues de validación cruzada. De entre ellos, seleccionaremos los dos tipos kernels que arrojen mejores resultados y haremos un tuneo más en profundidad sobre los hiperparámetros de cada tipo de modelo respectivamente.
+
+Cabe destacar en esta parte del proceso dos puntos sobre los modelos que presentamos a continuación. Por una parte, en general la búsqueda de hiperparámetros es un proceso costoso, sobre todo en términos de tiempo de computación, por lo que el siguiente bloque de código se limita a cargar los modelos que están almacenados en [la carpeta](github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base) `models/base` previamente ejecutados. De esta forma, podemos generar el presente documento sin necesidad de reentrenar los modelos cada vez.
+Por otro lado, debido además a que nuestro ámbito de estudio se centra en presentar las capacidades de `SVM`, no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos, ya que este es un proceso que en términos de tiempo de computación se escapa del alcance de este documento.
+
+```{r}
+
+# Listado de modelos iniciales guardados
+
+saved_models <- list.files("../models/base/")
+
+# Modelado inicial con kernel lineal
+
+if("tuned_linmod01.Rds" %in% list.files("../models/base/")){
+  tuned_linmod01 <- readRDS("../models/base/tuned_linmod01.Rds")
+  summary(tuned_linmod01) %>% print()
+} else {
+  tuned_linmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "linear",
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_linmod01,"../models/base/tuned_linmod01.Rds")
+  tuned_linmod01 <- readRDS("../models/base/tuned_linmod01.Rds")
+  summary(tuned_linmod01) %>% print()
+}
+
+# Modelado inicial con kernel polinomial
+
+if("tuned_polymod01.Rds" %in% list.files("../models/base/")){
+  tuned_polymod01 <- readRDS("../models/base/tuned_polymod01.Rds")
+  print(summary(tuned_polymod01))
+} else {
+  tuned_polymod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "polynomial",
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       degree = 3,
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_polymod01,"../models/base/tuned_polymod01.Rds")
+  tuned_polymod01 <- readRDS("../models/base/tuned_polymod01.Rds")
+  print(summary(tuned_polymod01))
+}
+
+
+# Modelado inicial con kernel radial
+
+if("tuned_radmod01.Rds" %in% list.files("../models/base/")){
+  tuned_radmod01 <- readRDS("../models/base/tuned_radmod01.Rds")
+  summary(tuned_radmod01) %>% print()
+} else {
+  tuned_radmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "radial",
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_radmod01,"../models/base/tuned_radmod01.Rds")
+  tuned_radmod01 <- readRDS("../models/base/tuned_radmod01.Rds")
+  summary(tuned_radmod01) %>% print()
+}
+
+# Modelado inicial con kernel radial
+
+if("tuned_sigmod01.Rds" %in% list.files("../models/base/")){
+  tuned_sigmod01 <- readRDS("../models/base/tuned_sigmod01.Rds")
+  summary(tuned_sigmod01) %>% print()
+} else {
+  tuned_sigmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "sigmoid",
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_sigmod01,"../models/base/tuned_sigmod01.Rds")
+  tuned_sigmod01 <- readRDS("../models/base/tuned_sigmod01.Rds")
+  summary(tuned_sigmod01) %>% print()
+}
+
+```
+
 
 ### Propuesta de mejora con menos variables --> Estudiar correlación.
 

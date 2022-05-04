@@ -11,6 +11,7 @@ mv docs/*.html docs/index.html
 git add source/
 git add docs/
 git add sh/
+git add models/
 echo "Enter commit comment: "
 read input
 # echo "El commit es ${input}"

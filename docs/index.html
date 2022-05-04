@@ -11,7 +11,7 @@
 
 <meta name="author" content="Pablo Dominguez" />
 
-<meta name="date" content="2022-04-22" />
+<meta name="date" content="2022-05-04" />
 
 <title>Seeds</title>
 
@@ -1836,7 +1836,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Seeds</h1>
 <h4 class="author">Pablo Dominguez</h4>
-<h4 class="date">2022-04-22</h4>
+<h4 class="date">2022-05-04</h4>
 
 </div>
 
@@ -1847,7 +1847,8 @@ library(knitr)
 library(ggplot2)
 library(ggpubr)
 library(pastecs)
-library(kableExtra)</code></pre>
+library(kableExtra)
+library (e1071)</code></pre>
 <style type="text/css">
 blockquote {
     padding: 10px 20px;
@@ -1856,6 +1857,9 @@ blockquote {
     border-left: 5px solid #eee;
 }
 </style>
+<p>La información completa sobre la generación de este documento puede
+encontrarse en este <a href="https://github.com/Pablo-Dominguez/MACE-repo">repositorio de
+GitHub</a>.</p>
 <div id="entrega-mace-bloque-2" class="section level1">
 <h1>Entrega MACE bloque 2</h1>
 <div id="introducción" class="section level2">
@@ -3765,12 +3769,174 @@ eliminado en todos los casos los outliers al tiempo que no hemos
 afectado significativamente el resto de estadísticos. Emplearemos por
 tanto esta base de datos modificada como base de datos de partida para
 el proceso del modelado de los datos.</p>
+<pre class="r fold-show"><code># Creación de la base de datos para el modelado.
+df_final &lt;- trimmed_df_class01 %&gt;% bind_rows(.,trimmed_df_class02)</code></pre>
 </div>
 </div>
 <div id="modelización-con-svm" class="section level2">
 <h2>Modelización con <code>SVM</code></h2>
 <div id="modelización-inicial" class="section level3">
 <h3>Modelización inicial</h3>
+<p>En primer lugar, debemos configurar la variable <code>Class</code>
+para que nuestro modelo la considere como un factor.</p>
+<pre class="r fold-show"><code>df_final$Class &lt;- as.factor(df_final$Class)</code></pre>
+<p>A continuación, vamos a crear una serie de modelos con los que
+iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno
+para cada tipo de kernel, con un vector inicial de costes con los
+valores <code>0.001, 0.01, 0.1, 1, 5, 10, 100</code> y 10 pliegues de
+validación cruzada. De entre ellos, seleccionaremos los dos tipos
+kernels que arrojen mejores resultados y haremos un tuneo más en
+profundidad sobre los hiperparámetros de cada tipo de modelo
+respectivamente.</p>
+<p>Cabe destacar en esta parte del proceso dos puntos sobre los modelos
+que presentamos a continuación. Por una parte, en general la búsqueda de
+hiperparámetros es un proceso costoso, sobre todo en términos de tiempo
+de computación, por lo que el siguiente bloque de código se limita a
+cargar los modelos que están almacenados en <a href="github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base">la
+carpeta</a> <code>models/base</code> previamente ejecutados. De esta
+forma, podemos generar el presente documento sin necesidad de reentrenar
+los modelos cada vez. Por otro lado, debido además a que nuestro ámbito
+de estudio se centra en presentar las capacidades de <code>SVM</code>,
+no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos,
+ya que este es un proceso que en términos de tiempo de computación se
+escapa del alcance de este documento.</p>
+<pre class="r"><code># Listado de modelos iniciales guardados
+
+saved_models &lt;- list.files(&quot;../models/base/&quot;)
+
+# Modelado inicial con kernel lineal
+
+if(&quot;tuned_linmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+  tuned_linmod01 &lt;- readRDS(&quot;../models/base/tuned_linmod01.Rds&quot;)
+  summary(tuned_linmod01) %&gt;% print()
+} else {
+  tuned_linmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;linear&quot;,
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_linmod01,&quot;../models/base/tuned_linmod01.Rds&quot;)
+  tuned_linmod01 &lt;- readRDS(&quot;../models/base/tuned_linmod01.Rds&quot;)
+  summary(tuned_linmod01) %&gt;% print()
+}</code></pre>
+<pre><code>## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##    10
+## 
+## - best performance: 0.1124 
+## 
+## - Detailed performance results:
+##      cost  error dispersion
+## 1   0.001 0.1240 0.01748650
+## 2   0.010 0.1240 0.01885618
+## 3   0.100 0.1204 0.01637885
+## 4   1.000 0.1172 0.01759293
+## 5   5.000 0.1148 0.01633537
+## 6  10.000 0.1124 0.01604992
+## 7 100.000 0.1124 0.01466060</code></pre>
+<pre class="r"><code># Modelado inicial con kernel polinomial
+
+if(&quot;tuned_polymod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
+  print(summary(tuned_polymod01))
+} else {
+  tuned_polymod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;polynomial&quot;,
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       degree = 3,
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_polymod01,&quot;../models/base/tuned_polymod01.Rds&quot;)
+  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
+  print(summary(tuned_polymod01))
+}</code></pre>
+<pre><code>## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##   100
+## 
+## - best performance: 0.1044 
+## 
+## - Detailed performance results:
+##      cost  error dispersion
+## 1   0.001 0.3192 0.03546767
+## 2   0.010 0.1912 0.02464323
+## 3   0.100 0.1432 0.01816468
+## 4   1.000 0.1272 0.01902513
+## 5   5.000 0.1196 0.01822818
+## 6  10.000 0.1164 0.01842221
+## 7 100.000 0.1044 0.01513788</code></pre>
+<pre class="r"><code># Modelado inicial con kernel radial
+
+if(&quot;tuned_radmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+  tuned_radmod01 &lt;- readRDS(&quot;../models/base/tuned_radmod01.Rds&quot;)
+  summary(tuned_radmod01) %&gt;% print()
+} else {
+  tuned_radmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;radial&quot;,
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_radmod01,&quot;../models/base/tuned_radmod01.Rds&quot;)
+  tuned_radmod01 &lt;- readRDS(&quot;../models/base/tuned_radmod01.Rds&quot;)
+  summary(tuned_radmod01) %&gt;% print()
+}</code></pre>
+<pre><code>## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##    10
+## 
+## - best performance: 0.0952 
+## 
+## - Detailed performance results:
+##      cost  error dispersion
+## 1   0.001 0.4800 0.03075350
+## 2   0.010 0.1164 0.02250531
+## 3   0.100 0.1112 0.02671995
+## 4   1.000 0.1056 0.03122392
+## 5   5.000 0.0972 0.02951760
+## 6  10.000 0.0952 0.02691881
+## 7 100.000 0.0980 0.02431278</code></pre>
+<pre class="r"><code># Modelado inicial con kernel radial
+
+if(&quot;tuned_sigmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+  tuned_sigmod01 &lt;- readRDS(&quot;../models/base/tuned_sigmod01.Rds&quot;)
+  summary(tuned_sigmod01) %&gt;% print()
+} else {
+  tuned_sigmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;sigmoid&quot;,
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_sigmod01,&quot;../models/base/tuned_sigmod01.Rds&quot;)
+  tuned_sigmod01 &lt;- readRDS(&quot;../models/base/tuned_sigmod01.Rds&quot;)
+  summary(tuned_sigmod01) %&gt;% print()
+}</code></pre>
+<pre><code>## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##  0.01
+## 
+## - best performance: 0.1272 
+## 
+## - Detailed performance results:
+##      cost  error dispersion
+## 1   0.001 0.1588 0.01995996
+## 2   0.010 0.1272 0.01705416
+## 3   0.100 0.1728 0.02638518
+## 4   1.000 0.2088 0.02808242
+## 5   5.000 0.2112 0.02570257
+## 6  10.000 0.2176 0.02349090
+## 7 100.000 0.2096 0.02430912</code></pre>
 </div>
 <div id="propuesta-de-mejora-con-menos-variables-estudiar-correlación." class="section level3">
 <h3>Propuesta de mejora con menos variables –&gt; Estudiar
