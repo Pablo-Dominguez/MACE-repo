@@ -76,7 +76,7 @@ En el caso de nuestro estudio, salvo que alguna de las variables tenga poca cali
 df %>% sapply(class) %>% kable(.,col.names = c("Tipo"))
 ```
 
-
+<br>
 Para continuar con el estudio, analizaremos los valores faltantes y los outliers o valores atípicos, así como presentaremos histogramas comparativos de cada variable  para cada tipo de semilla.
 
 ### Calidad del dato
@@ -557,7 +557,7 @@ st_test$Class <- test$Class
 
 Realizamos a continuación un secuenciado exponencial sobre los hiperparámetros. Como nota, hemos reducido la validación cruzada a cinco pliegues para que el tiempo de computación no sea excesivo.
 
-```{r eval=FALSE}
+```{r}
 # Modelado refinado con kernel radial
 
 if("tuned_radmod03.Rds" %in% saved_models){
@@ -602,4 +602,3 @@ if("tuned_radmod03.Rds" %in% saved_models){
 * [RStudio cheatsheets](https://www.rstudio.com/resources/cheatsheets/)
 
 
-[[1](#Ref01)]
