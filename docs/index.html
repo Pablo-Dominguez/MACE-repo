@@ -11,7 +11,7 @@
 
 <meta name="author" content="Pablo Dominguez" />
 
-<meta name="date" content="2022-05-04" />
+<meta name="date" content="2022-05-05" />
 
 <title>Seeds</title>
 
@@ -1836,7 +1836,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Seeds</h1>
 <h4 class="author">Pablo Dominguez</h4>
-<h4 class="date">2022-05-04</h4>
+<h4 class="date">2022-05-05</h4>
 
 </div>
 
@@ -1848,7 +1848,8 @@ library(ggplot2)
 library(ggpubr)
 library(pastecs)
 library(kableExtra)
-library (e1071)</code></pre>
+library (e1071)
+library(lemon)</code></pre>
 <style type="text/css">
 blockquote {
     padding: 10px 20px;
@@ -1889,6 +1890,8 @@ resultados obtenidos.</p>
 balanceadas de semillas de calabaza <em>Çerçevelik</em> y <em>Ürgüp
 Sivrisi</em>:</p>
 <pre class="r fold-show"><code>options(scipen=999) # desactivamos la notación científica
+options(max.print=100) # limitamos la longitud de los print
+
 df &lt;- readxl::read_excel(&quot;../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx&quot;)
 table(df$Class)</code></pre>
 <pre><code>## 
@@ -3778,80 +3781,84 @@ df_final &lt;- trimmed_df_class01 %&gt;% bind_rows(.,trimmed_df_class02)</code><
 <div id="modelización-inicial" class="section level3">
 <h3>Modelización inicial</h3>
 <p>En primer lugar, debemos configurar la variable <code>Class</code>
-para que nuestro modelo la considere como un factor.</p>
-<pre class="r fold-show"><code>df_final$Class &lt;- as.factor(df_final$Class)</code></pre>
-<p>A continuación, vamos a crear una serie de modelos con los que
-iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno
-para cada tipo de kernel, con un vector inicial de costes con los
-valores <code>0.001, 0.01, 0.1, 1, 5, 10, 100</code> y 10 pliegues de
-validación cruzada. De entre ellos, seleccionaremos los dos tipos
-kernels que arrojen mejores resultados y haremos un tuneo más en
+para que nuestro modelo la considere como un factor. Además, es en este
+momento donde vamos a crear la división entre nuestro conjunto de
+entrenamiento y nuestro conjunto de test.</p>
+<pre class="r fold-show"><code>saved_dbs &lt;- list.files(&quot;../dbs/model_db/&quot;)
+
+if(&quot;df_final.Rds&quot; %in% saved_dbs){
+  df_final &lt;- readRDS(file=&quot;../dbs/model_db/df_final.Rds&quot;)
+} else {
+  df_final$Class &lt;- as.factor(df_final$Class)
+  saveRDS(df_final, file=&quot;../dbs/model_db/df_final.Rds&quot;)
+}
+
+# Creamos los conjuntos de entrenamiento y test
+df_final$id &lt;- 1:nrow(df_final)
+set.seed(210)
+train &lt;- df_final %&gt;% dplyr::sample_frac(.75)
+test  &lt;- dplyr::anti_join(df_final, train, by = &#39;id&#39;)
+
+# Eliminamos la columna id
+train &lt;- train[,!(names(train) %in% c(&quot;id&quot;))]
+test &lt;- test[,!(names(test) %in% c(&quot;id&quot;))]</code></pre>
+<p>Comprobamos a continuación que las clases de semilla estén
+balanceadas dentro de cada conjunto.</p>
+<pre class="r"><code>table(train$Class) %&gt;% print()</code></pre>
+<pre><code>## 
+##    Çerçevelik Ürgüp Sivrisi 
+##           966           909</code></pre>
+<pre class="r"><code>table(test$Class) %&gt;% print()</code></pre>
+<pre><code>## 
+##    Çerçevelik Ürgüp Sivrisi 
+##           334           291</code></pre>
+<p>Una vez hechas las preparaciones oportunas, vamos a crear una serie
+de modelos con los que iniciaremos nuestra fase de modelado. Crearemos
+cuatro tuneados, uno para cada tipo de kernel, con un vector inicial de
+costes con los valores <code>0.001, 0.01, 0.1, 1, 5, 10, 100</code> y 10
+pliegues de validación cruzada. De entre ellos, seleccionaremos los dos
+tipos kernels que arrojen mejores resultados y haremos un tuneo más en
 profundidad sobre los hiperparámetros de cada tipo de modelo
 respectivamente.</p>
 <p>Cabe destacar en esta parte del proceso dos puntos sobre los modelos
 que presentamos a continuación. Por una parte, en general la búsqueda de
 hiperparámetros es un proceso costoso, sobre todo en términos de tiempo
 de computación, por lo que el siguiente bloque de código se limita a
-cargar los modelos que están almacenados en <a href="github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base">la
-carpeta</a> <code>models/base</code> previamente ejecutados. De esta
-forma, podemos generar el presente documento sin necesidad de reentrenar
-los modelos cada vez. Por otro lado, debido además a que nuestro ámbito
-de estudio se centra en presentar las capacidades de <code>SVM</code>,
-no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos,
-ya que este es un proceso que en términos de tiempo de computación se
-escapa del alcance de este documento.</p>
+cargar los modelos que están almacenados en <a href="https://github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base">la
+carpeta</a> <code>models/base</code> previamente ejecutados y guardados.
+De esta forma, podemos generar el presente documento sin necesidad de
+reentrenar los modelos cada vez. Por otro lado, debido además a que
+nuestro ámbito de estudio se centra en presentar las capacidades de
+<code>SVM</code>, no realizaremos una búsqueda exhaustiva de los
+hiperparámetros óptimos, ya que este es un proceso que en términos de
+tiempo de computación se escapa del alcance de este documento.</p>
 <pre class="r"><code># Listado de modelos iniciales guardados
 
 saved_models &lt;- list.files(&quot;../models/base/&quot;)
 
 # Modelado inicial con kernel lineal
 
-if(&quot;tuned_linmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+if(&quot;tuned_linmod01.Rds&quot; %in% saved_models){
   tuned_linmod01 &lt;- readRDS(&quot;../models/base/tuned_linmod01.Rds&quot;)
-  summary(tuned_linmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel lineal&quot;)
+  tuned_linmod01_sum &lt;- summary(tuned_linmod01)
+  tuned_linmod01_sum %&gt;% print()
+  print(paste0(&quot;Error promedio: &quot;,tuned_linmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_linmod01_sum$performances$error %&gt;% sd()))
 } else {
-  tuned_linmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;linear&quot;,
+  tuned_linmod01 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;linear&quot;,
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_linmod01,&quot;../models/base/tuned_linmod01.Rds&quot;)
   tuned_linmod01 &lt;- readRDS(&quot;../models/base/tuned_linmod01.Rds&quot;)
-  summary(tuned_linmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel lineal&quot;)
+  tuned_linmod01_sum &lt;- summary(tuned_linmod01)
+  tuned_linmod01_sum %&gt;% print()
+  print(paste0(&quot;Error promedio: &quot;,tuned_linmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_linmod01_sum$performances$error %&gt;% sd()))
 }</code></pre>
-<pre><code>## 
-## Parameter tuning of &#39;svm&#39;:
+<pre><code>## [1] &quot;Modelado inicial con kernel lineal&quot;
 ## 
-## - sampling method: 10-fold cross validation 
-## 
-## - best parameters:
-##  cost
-##    10
-## 
-## - best performance: 0.1124 
-## 
-## - Detailed performance results:
-##      cost  error dispersion
-## 1   0.001 0.1240 0.01748650
-## 2   0.010 0.1240 0.01885618
-## 3   0.100 0.1204 0.01637885
-## 4   1.000 0.1172 0.01759293
-## 5   5.000 0.1148 0.01633537
-## 6  10.000 0.1124 0.01604992
-## 7 100.000 0.1124 0.01466060</code></pre>
-<pre class="r"><code># Modelado inicial con kernel polinomial
-
-if(&quot;tuned_polymod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
-  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
-  print(summary(tuned_polymod01))
-} else {
-  tuned_polymod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;polynomial&quot;,
-                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
-                       degree = 3,
-                       tunecontrol = tune.control(cross=10))
-  saveRDS(tuned_polymod01,&quot;../models/base/tuned_polymod01.Rds&quot;)
-  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
-  print(summary(tuned_polymod01))
-}</code></pre>
-<pre><code>## 
 ## Parameter tuning of &#39;svm&#39;:
 ## 
 ## - sampling method: 10-fold cross validation 
@@ -3860,31 +3867,87 @@ if(&quot;tuned_polymod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;))
 ##  cost
 ##   100
 ## 
-## - best performance: 0.1044 
+## - best performance: 0.1104079 
 ## 
 ## - Detailed performance results:
-##      cost  error dispersion
-## 1   0.001 0.3192 0.03546767
-## 2   0.010 0.1912 0.02464323
-## 3   0.100 0.1432 0.01816468
-## 4   1.000 0.1272 0.01902513
-## 5   5.000 0.1196 0.01822818
-## 6  10.000 0.1164 0.01842221
-## 7 100.000 0.1044 0.01513788</code></pre>
+##      cost     error dispersion
+## 1   0.001 0.1279952 0.02072748
+## 2   0.010 0.1237342 0.02477960
+## 3   0.100 0.1200108 0.02799406
+## 4   1.000 0.1168051 0.02985413
+## 5   5.000 0.1120065 0.02691371
+## 6  10.000 0.1114774 0.02651156
+## 7 100.000 0.1104079 0.02536244
+## 
+## [1] &quot;Error promedio: 0.117491019618679. Desv. típica del error: 0.0067398039155762&quot;</code></pre>
+<pre class="r"><code># Modelado inicial con kernel polinomial
+
+if(&quot;tuned_polymod01.Rds&quot; %in% saved_models){
+  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
+  print(&quot;Modelado inicial con kernel polinomial&quot;)
+  tuned_polymod01_sum &lt;- summary(tuned_polymod01)
+  print(tuned_polymod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_polymod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_polymod01_sum$performances$error %&gt;% sd()))
+} else {
+  tuned_polymod01 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;polynomial&quot;,
+                       ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
+                       degree = 3,
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_polymod01,&quot;../models/base/tuned_polymod01.Rds&quot;)
+  tuned_polymod01 &lt;- readRDS(&quot;../models/base/tuned_polymod01.Rds&quot;)
+  print(&quot;Modelado inicial con kernel polinomial&quot;)
+  tuned_polymod01_sum &lt;- summary(tuned_polymod01)
+  print(tuned_polymod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_polymod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_polymod01_sum$performances$error %&gt;% sd()))
+}</code></pre>
+<pre><code>## [1] &quot;Modelado inicial con kernel polinomial&quot;
+## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##   100
+## 
+## - best performance: 0.105615 
+## 
+## - Detailed performance results:
+##      cost     error dispersion
+## 1   0.001 0.3286068 0.05836002
+## 2   0.010 0.1915093 0.03597462
+## 3   0.100 0.1472210 0.01672653
+## 4   1.000 0.1285470 0.01468742
+## 5   5.000 0.1216179 0.01520548
+## 6  10.000 0.1210860 0.01483922
+## 7 100.000 0.1056150 0.01473590
+## 
+## [1] &quot;Error promedio: 0.163457568714139. Desv. típica del error: 0.0779264632382562&quot;</code></pre>
 <pre class="r"><code># Modelado inicial con kernel radial
 
-if(&quot;tuned_radmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+if(&quot;tuned_radmod01.Rds&quot; %in% saved_models){
   tuned_radmod01 &lt;- readRDS(&quot;../models/base/tuned_radmod01.Rds&quot;)
-  summary(tuned_radmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel radial&quot;)
+  tuned_radmod01_sum &lt;- summary(tuned_radmod01)
+  print(tuned_radmod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod01_sum$performances$error %&gt;% sd()))
 } else {
-  tuned_radmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;radial&quot;,
+  tuned_radmod01 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;radial&quot;,
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_radmod01,&quot;../models/base/tuned_radmod01.Rds&quot;)
   tuned_radmod01 &lt;- readRDS(&quot;../models/base/tuned_radmod01.Rds&quot;)
-  summary(tuned_radmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel radial&quot;)
+  tuned_radmod01_sum &lt;- summary(tuned_radmod01)
+  print(tuned_radmod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod01_sum$performances$error %&gt;% sd()))
 }</code></pre>
-<pre><code>## 
+<pre><code>## [1] &quot;Modelado inicial con kernel radial&quot;
+## 
 ## Parameter tuning of &#39;svm&#39;:
 ## 
 ## - sampling method: 10-fold cross validation 
@@ -3893,31 +3956,42 @@ if(&quot;tuned_radmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
 ##  cost
 ##    10
 ## 
-## - best performance: 0.0952 
+## - best performance: 0.09602344 
 ## 
 ## - Detailed performance results:
-##      cost  error dispersion
-## 1   0.001 0.4800 0.03075350
-## 2   0.010 0.1164 0.02250531
-## 3   0.100 0.1112 0.02671995
-## 4   1.000 0.1056 0.03122392
-## 5   5.000 0.0972 0.02951760
-## 6  10.000 0.0952 0.02691881
-## 7 100.000 0.0980 0.02431278</code></pre>
-<pre class="r"><code># Modelado inicial con kernel radial
+##      cost      error dispersion
+## 1   0.001 0.48484754 0.03672588
+## 2   0.010 0.11682785 0.01823526
+## 3   0.100 0.11202640 0.02029943
+## 4   1.000 0.10616395 0.02172972
+## 5   5.000 0.09815963 0.01815572
+## 6  10.000 0.09602344 0.01566522
+## 7 100.000 0.10240642 0.01329565
+## 
+## [1] &quot;Error promedio: 0.15949360401801. Desv. típica del error: 0.1436558387844&quot;</code></pre>
+<pre class="r"><code># Modelado inicial con kernel sigmoidal
 
-if(&quot;tuned_sigmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
+if(&quot;tuned_sigmod01.Rds&quot; %in% saved_models){
   tuned_sigmod01 &lt;- readRDS(&quot;../models/base/tuned_sigmod01.Rds&quot;)
-  summary(tuned_sigmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel sigmoidal&quot;)
+  tuned_sigmod01_sum &lt;- summary(tuned_sigmod01)
+  print(tuned_sigmod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_sigmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_sigmod01_sum$performances$error %&gt;% sd()))
 } else {
-  tuned_sigmod01 &lt;- tune(svm ,Class ~ ., data = df_final, kernel = &quot;sigmoid&quot;,
+  tuned_sigmod01 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;sigmoid&quot;,
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_sigmod01,&quot;../models/base/tuned_sigmod01.Rds&quot;)
   tuned_sigmod01 &lt;- readRDS(&quot;../models/base/tuned_sigmod01.Rds&quot;)
-  summary(tuned_sigmod01) %&gt;% print()
+  print(&quot;Modelado inicial con kernel sigmoidal&quot;)
+  tuned_sigmod01_sum &lt;- summary(tuned_sigmod01)
+  print(tuned_sigmod01_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_sigmod01_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_sigmod01_sum$performances$error %&gt;% sd()))
 }</code></pre>
-<pre><code>## 
+<pre><code>## [1] &quot;Modelado inicial con kernel sigmoidal&quot;
+## 
 ## Parameter tuning of &#39;svm&#39;:
 ## 
 ## - sampling method: 10-fold cross validation 
@@ -3926,21 +4000,287 @@ if(&quot;tuned_sigmod01.Rds&quot; %in% list.files(&quot;../models/base/&quot;)){
 ##  cost
 ##  0.01
 ## 
-## - best performance: 0.1272 
+## - best performance: 0.125347 
 ## 
 ## - Detailed performance results:
-##      cost  error dispersion
-## 1   0.001 0.1588 0.01995996
-## 2   0.010 0.1272 0.01705416
-## 3   0.100 0.1728 0.02638518
-## 4   1.000 0.2088 0.02808242
-## 5   5.000 0.2112 0.02570257
-## 6  10.000 0.2176 0.02349090
-## 7 100.000 0.2096 0.02430912</code></pre>
+##      cost     error dispersion
+## 1   0.001 0.2634742 0.03967081
+## 2   0.010 0.1253470 0.01606279
+## 3   0.100 0.1440266 0.01764457
+## 4   1.000 0.2048100 0.01894312
+## 5   5.000 0.2122653 0.01823698
+## 6  10.000 0.2133349 0.01723605
+## 7 100.000 0.2143958 0.01870001
+## 
+## [1] &quot;Error promedio: 0.196807697934106. Desv. típica del error: 0.0469438679413174&quot;</code></pre>
+<p>Así, de estas cuatro primeras aproximaciones, vamos a realizar un
+tuneo con algo más de profundidad para los modelos con kernel lineal y
+con kernel radial. La decisión de centrarnos en estos dos tipos, en el
+caso del kernel lineal viene dada por ser el que menor error promedio
+tiene y se comporta más flexiblemente frente a los cambios de coste. Por
+otro lado, en el caso del radial, se justifica porque, aunque presenta
+un error similar con respecto al kernel polinomial, este está
+influenciado por el error para el coste <code>0.001</code>. No obstante
+esto, es posible que si realizásemos una búsqueda de hiperparámetros con
+mayor exhaustividad exista un modelo con kernel polinomial más óptimo
+que el radial seleccionado. Nos limitamos a esta elección, además de
+apoyada por los argumentos presentados, con el objetivo de limitar el
+alcance de este estudio.</p>
 </div>
-<div id="propuesta-de-mejora-con-menos-variables-estudiar-correlación." class="section level3">
-<h3>Propuesta de mejora con menos variables –&gt; Estudiar
-correlación.</h3>
+<div id="tuneo-de-hiperparámetros" class="section level3">
+<h3>Tuneo de hiperparámetros</h3>
+<p>Así pues, realizamos a continuación una búsqueda en mayor profundidad
+de los hiperparámetros para los kernels <code>lineal</code> y
+<code>radial</code>. Centraremos la búsqueda en aquellos valores de los
+costes que nos hayan aportado mejor resultado.</p>
+<p>En el caso del kernel <code>lineal</code>, vemos que obtenemos
+errores bajos para los valores del coste entre 1 y 10, por lo que nos
+centraremos en costes en este entorno.</p>
+<pre class="r"><code># Listado de modelos tuneados guardados
+
+saved_models &lt;- list.files(&quot;../models/tuned/&quot;)
+
+# Modelado con kernel lineal
+
+if(&quot;tuned_linmod02.Rds&quot; %in% saved_models){
+  tuned_linmod02 &lt;- readRDS(&quot;../models/tuned/tuned_linmod02.Rds&quot;)
+  print(&quot;Modelado con kernel lineal&quot;)
+  tuned_linmod02_sum &lt;- summary(tuned_linmod02)
+  tuned_linmod02_sum %&gt;% print()
+  print(paste0(&quot;Error promedio: &quot;,tuned_linmod02_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_linmod02_sum$performances$error %&gt;% sd()))
+} else {
+  tuned_linmod02 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;linear&quot;,
+                       ranges =list(cost=seq(from = 1, to = 10, by=0.25) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_linmod02,&quot;../models/tuned/tuned_linmod02.Rds&quot;)
+  tuned_linmod01 &lt;- readRDS(&quot;../models/tuned/tuned_linmod02.Rds&quot;)
+  print(&quot;Modelado con kernel lineal&quot;)
+  tuned_linmod02_sum &lt;- summary(tuned_linmod02)
+  tuned_linmod02_sum %&gt;% print()
+  print(paste0(&quot;Error promedio: &quot;,tuned_linmod02_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_linmod02_sum$performances$error %&gt;% sd()))
+}</code></pre>
+<pre><code>## [1] &quot;Modelado con kernel lineal&quot;
+## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost
+##   3.5
+## 
+## - best performance: 0.1128 
+## 
+## - Detailed performance results:
+##    cost  error dispersion
+## 1  1.00 0.1172 0.01222747
+## 2  1.25 0.1164 0.01312504
+## 3  1.50 0.1152 0.01370158
+## 4  1.75 0.1152 0.01289961
+## 5  2.00 0.1152 0.01219107
+## 6  2.25 0.1148 0.01084025
+## 7  2.50 0.1140 0.01225652
+## 8  2.75 0.1136 0.01267719
+## 9  3.00 0.1140 0.01282359
+## 10 3.25 0.1132 0.01320606
+## 11 3.50 0.1128 0.01317236
+## 12 3.75 0.1136 0.01335997
+## 13 4.00 0.1128 0.01276105
+## 14 4.25 0.1136 0.01281666
+## 15 4.50 0.1132 0.01334000
+## 16 4.75 0.1136 0.01322624
+## 17 5.00 0.1128 0.01189584
+## 18 5.25 0.1140 0.01388844
+## 19 5.50 0.1140 0.01388844
+## 20 5.75 0.1136 0.01322624
+## 21 6.00 0.1132 0.01334000
+## 22 6.25 0.1140 0.01349897
+## 23 6.50 0.1136 0.01295462
+## 24 6.75 0.1140 0.01336663
+## 25 7.00 0.1144 0.01388204
+## 26 7.25 0.1128 0.01262097
+## 27 7.50 0.1128 0.01262097
+## 28 7.75 0.1136 0.01349238
+## 29 8.00 0.1132 0.01307075
+## 30 8.25 0.1136 0.01349238
+## 31 8.50 0.1136 0.01349238
+## 32 8.75 0.1136 0.01349238
+## 33 9.00 0.1136 0.01349238
+##  [ reached &#39;max&#39; / getOption(&quot;max.print&quot;) -- omitted 4 rows ]
+## 
+## [1] &quot;Error promedio: 0.113881081081081. Desv. típica del error: 0.00095621877954491&quot;</code></pre>
+<p>En general modelos más sencillos como es el caso del
+<code>SVM lineal</code> que aquí presentamos tendrán mayor sesgo y menor
+varianza. De este modo, podemos comprobar que el error en este caso se
+comporta como era esperable. Así, elegiremos arbitrariamente como primer
+candidato para nuestro modelado al mejor modelo con kernel lineal
+obtenido, el modelo <code>tuned_linmod02$best.model</code> con coste
+<code>3.5</code>.</p>
+<p>Por otra parte, en el caso del kernel <code>radial</code>, vamos a
+aplicar una validación cruzada para determinar el mejor valor para los
+hiperparámetros del coste y de la <code>gamma</code>.</p>
+<pre class="r"><code># Modelado con kernel radial
+
+if(&quot;tuned_radmod02.Rds&quot; %in% saved_models){
+  tuned_radmod02 &lt;- readRDS(&quot;../models/tuned/tuned_radmod02.Rds&quot;)
+  print(&quot;Modelado con kernel radial&quot;)
+  tuned_radmod02_sum &lt;- summary(tuned_radmod02)
+  print(tuned_radmod02_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod02_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod02_sum$performances$error %&gt;% sd()))
+} else {
+  tuned_radmod02 &lt;- tune(svm ,Class ~ ., data = train, kernel = &quot;radial&quot;,
+                       ranges =list(cost=seq(from = 5, to = 10, by=0.5),
+                                    gamma=seq(from = 0.1, to = 5, by=0.2) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_radmod02,&quot;../models/tuned/tuned_radmod02.Rds&quot;)
+  tuned_radmod02 &lt;- readRDS(&quot;../models/tuned/tuned_radmod02.Rds&quot;)
+  print(&quot;Modelado con kernel radial&quot;)
+  tuned_radmod02_sum &lt;- summary(tuned_radmod02)
+  print(tuned_radmod02_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod02_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod02_sum$performances$error %&gt;% sd()))
+}</code></pre>
+<pre><code>## [1] &quot;Modelado con kernel radial&quot;
+## 
+## Parameter tuning of &#39;svm&#39;:
+## 
+## - sampling method: 10-fold cross validation 
+## 
+## - best parameters:
+##  cost gamma
+##   6.5   0.1
+## 
+## - best performance: 0.0972 
+## 
+## - Detailed performance results:
+##    cost gamma  error dispersion
+## 1   5.0   0.1 0.0980 0.01811077
+## 2   5.5   0.1 0.0980 0.01811077
+## 3   6.0   0.1 0.0976 0.01849444
+## 4   6.5   0.1 0.0972 0.01738965
+## 5   7.0   0.1 0.0972 0.01738965
+## 6   7.5   0.1 0.0980 0.01849925
+## 7   8.0   0.1 0.0980 0.01878534
+## 8   8.5   0.1 0.0976 0.01952321
+## 9   9.0   0.1 0.0984 0.01979450
+## 10  9.5   0.1 0.0976 0.02041350
+## 11 10.0   0.1 0.0976 0.02041350
+## 12  5.0   0.3 0.1012 0.01914158
+## 13  5.5   0.3 0.1016 0.01868570
+## 14  6.0   0.3 0.1020 0.01869046
+## 15  6.5   0.3 0.1036 0.01851846
+## 16  7.0   0.3 0.1048 0.01984831
+## 17  7.5   0.3 0.1040 0.01977653
+## 18  8.0   0.3 0.1032 0.01984831
+## 19  8.5   0.3 0.1036 0.01927116
+## 20  9.0   0.3 0.1040 0.02124984
+## 21  9.5   0.3 0.1044 0.02078033
+## 22 10.0   0.3 0.1036 0.02034808
+## 23  5.0   0.5 0.1112 0.02300145
+## 24  5.5   0.5 0.1092 0.02183168
+## 25  6.0   0.5 0.1100 0.02201010
+##  [ reached &#39;max&#39; / getOption(&quot;max.print&quot;) -- omitted 250 rows ]
+## 
+## [1] &quot;Error promedio: 0.141255272727273. Desv. típica del error: 0.0189266852757565&quot;</code></pre>
+<p>Al igual que en el caso anterior, vamos a seleccionar el mejor modelo
+<code>tuned_radmod02$best.model</code> que nos devuelve la validación
+cruzada, con coste <code>6.5</code> y gamma <code>0.1</code>. Destacar
+que aunque ha conllevado un tiempo de ejecución considerable, la
+búsqueda del gamma no ha arrojado mejores resultados que los
+iniciales.</p>
+</div>
+<div id="propuesta-de-mejora" class="section level3">
+<h3>Propuesta de mejora</h3>
+<p>A pesar de que las decisiones tomadas anteriormente sobre las
+elecciones de estrategias, parámetros y modelos son lícitas, hemos visto
+que existe un margen de mejora en cuanto a la rigurosidad con la que
+hemos realizado la búsqueda de hiperparámetros. Es por esto que, con la
+intención de obtener resultados más refinados, nos basaremos en
+propuestas que podemos encontrar en la bibliografía para comparar con
+los modelos iniciales obtenidos.</p>
+<p>Es por esto que, según se aconseja en [<a href="#Ref01">1</a>], vamos
+a realizar una normalización junto con una búsqueda sobre una secuencia
+exponencial para el parámetro gamma. Compararemos el modelo que
+obtengamos de este proceso contra los dos obtenidos anteriormente.</p>
+<p>Así, comencemos por estandarizar los conjuntos de entrenamiento y
+test haciendo uso de la misma media y varianza, esto es, las del
+entrenamiento. El motivo de hacer uso de estos estadísticos en ambos
+casos es que de otro modo estaríamos “filtrando” información al modelo a
+la hora de realizar el entrenamiento del mismo.</p>
+<pre class="r fold-show"><code># Estandarizamos el conjunto de entrenamiento.
+st_train &lt;- scale(train[,1:(ncol(train)-1)],center = TRUE, scale = TRUE) %&gt;% as.data.frame()
+st_train$Class &lt;- train$Class # Espero estar incluyendo la clase en el mismo orden. Revisar.
+
+# Calculamos el vector de medias y el vector de desviaciones estándar del conjunto train.
+
+means &lt;- train %&gt;% summarise_if(is.numeric, mean)
+st.devs &lt;- train %&gt;% summarise_if(is.numeric, sd)
+
+# Restamos las medias y dividimos por las desviaciones estándar
+st_test &lt;- scale(test[,1:(ncol(test)-1)],center = means, scale = st.devs) %&gt;% as.data.frame()
+st_test$Class &lt;- test$Class </code></pre>
+<p>Realizamos a continuación un secuenciado exponencial sobre los
+hiperparámetros. Como nota, hemos reducido la validación cruzada a cinco
+pliegues para que el tiempo de computación no sea excesivo.</p>
+<pre class="r"><code># Modelado refinado con kernel radial
+
+if(&quot;tuned_radmod03.Rds&quot; %in% saved_models){
+  tuned_radmod03 &lt;- readRDS(&quot;../models/tuned/tuned_radmod03.Rds&quot;)
+  print(&quot;Modelado refinado con kernel radial&quot;)
+  tuned_radmod03_sum &lt;- summary(tuned_radmod03)
+  print(tuned_radmod03_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod03_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod03_sum$performances$error %&gt;% sd()))
+} else {
+  tuned_radmod03 &lt;- tune(svm ,Class ~ ., data = st_train, kernel = &quot;radial&quot;,
+                       ranges =list(cost=2**seq(from=-5, to=10),
+                                    gamma=2**seq(from=-5, to=10)),
+                       tunecontrol = tune.control(cross=5))
+  saveRDS(tuned_radmod03,&quot;../models/tuned/tuned_radmod03.Rds&quot;)
+  tuned_radmod03 &lt;- readRDS(&quot;../models/tuned/tuned_radmod03.Rds&quot;)
+  print(&quot;Modelado refinado con kernel radial&quot;)
+  tuned_radmod03_sum &lt;- summary(tuned_radmod03)
+  print(tuned_radmod03_sum)
+  print(paste0(&quot;Error promedio: &quot;,tuned_radmod03_sum$performances$error %&gt;% mean(),
+               &quot;. Desv. típica del error: &quot;, tuned_radmod03_sum$performances$error %&gt;% sd()))
+}</code></pre>
+</div>
+</div>
+<div id="comparación-de-los-resultados" class="section level2">
+<h2>Comparación de los resultados</h2>
+</div>
+<div id="conclusiones" class="section level2">
+<h2>Conclusiones</h2>
+</div>
+<div id="referencias" class="section level2">
+<h2>Referencias</h2>
+<div id="bibliografía" class="section level3">
+<h3>Bibliografía</h3>
+<ol style="list-style-type: decimal">
+<li><a href="https://www.csie.ntu.edu.tw/~cjlin/papers/guide/guide.pdf" id="Ref01">A Practical Guide to Support Vector Classification</a></li>
+<li><a href="http://www.gatsby.ucl.ac.uk/aistats/fullpapers/198.pdf" id="Ref02">Semi-Supervised Classification by Low Density Separation -
+Section 2.3.2</a></li>
+</ol>
+</div>
+<div id="recursos-y-enlaces-de-interés" class="section level3">
+<h3>Recursos y enlaces de interés</h3>
+<ul>
+<li><a href="https://www.analytixlabs.co.in/blog/data-science-process">The Data
+Science process - Analytixlabs</a></li>
+<li><a href="https://towardsdatascience.com/practical-guide-to-outlier-detection-methods-6b9f947a161e">Practical
+guide to outlier detection - Towards data science</a></li>
+<li><a href="https://www.analyticsvidhya.com/blog/2020/04/feature-scaling-machine-learning-normalization-standardization/">Normalization
+and standardization of data - Analytics Vidhya</a></li>
+<li><a href="https://towardsdatascience.com/normalization-vs-standardization-quantitative-analysis-a91e8a79cebf">Normalization
+vs Standardization — Quantitative analysis - Towards data
+science</a></li>
+<li><a href="https://www.rstudio.com/resources/cheatsheets/">RStudio
+cheatsheets</a></li>
+</ul>
+<p>[<a href="#Ref01">1</a>]</p>
 </div>
 </div>
 </div>

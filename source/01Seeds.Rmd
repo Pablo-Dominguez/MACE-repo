@@ -23,6 +23,7 @@ library(ggpubr)
 library(pastecs)
 library(kableExtra)
 library (e1071)
+library(lemon)
 ```
 
 ```{css style settings, echo = FALSE}
@@ -54,6 +55,8 @@ Tal y como se muestra a continuación, tenemos las dos categorías balanceadas d
 
 ```{r class.source = 'fold-show'}
 options(scipen=999) # desactivamos la notación científica
+options(max.print=100) # limitamos la longitud de los print
+
 df <- readxl::read_excel("../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
 table(df$Class)
 ```
@@ -72,6 +75,7 @@ En el caso de nuestro estudio, salvo que alguna de las variables tenga poca cali
 ```{r}
 df %>% sapply(class) %>% kable(.,col.names = c("Tipo"))
 ```
+
 
 Para continuar con el estudio, analizaremos los valores faltantes y los outliers o valores atípicos, así como presentaremos histogramas comparativos de cada variable  para cada tipo de semilla.
 
@@ -322,15 +326,43 @@ df_final <- trimmed_df_class01 %>% bind_rows(.,trimmed_df_class02)
 
 ### Modelización inicial
 
-En primer lugar, debemos configurar la variable `Class` para que nuestro modelo la considere como un factor.
+En primer lugar, debemos configurar la variable `Class` para que nuestro modelo la considere como un factor. Además, es en este momento donde vamos a crear la división entre nuestro conjunto de entrenamiento y nuestro conjunto de test.
 
 ```{r class.source = 'fold-show'}
-df_final$Class <- as.factor(df_final$Class)
+
+saved_dbs <- list.files("../dbs/model_db/")
+
+if("df_final.Rds" %in% saved_dbs){
+  df_final <- readRDS(file="../dbs/model_db/df_final.Rds")
+} else {
+  df_final$Class <- as.factor(df_final$Class)
+  saveRDS(df_final, file="../dbs/model_db/df_final.Rds")
+}
+
+# Creamos los conjuntos de entrenamiento y test
+df_final$id <- 1:nrow(df_final)
+set.seed(210)
+train <- df_final %>% dplyr::sample_frac(.75)
+test  <- dplyr::anti_join(df_final, train, by = 'id')
+
+# Eliminamos la columna id
+train <- train[,!(names(train) %in% c("id"))]
+test <- test[,!(names(test) %in% c("id"))]
+
 ```
 
-A continuación, vamos a crear una serie de modelos con los que iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno para cada tipo de kernel, con un vector inicial de costes con los valores `0.001, 0.01, 0.1, 1, 5, 10, 100` y 10 pliegues de validación cruzada. De entre ellos, seleccionaremos los dos tipos kernels que arrojen mejores resultados y haremos un tuneo más en profundidad sobre los hiperparámetros de cada tipo de modelo respectivamente.
+Comprobamos a continuación que las clases de semilla estén balanceadas dentro de cada conjunto.
 
-Cabe destacar en esta parte del proceso dos puntos sobre los modelos que presentamos a continuación. Por una parte, en general la búsqueda de hiperparámetros es un proceso costoso, sobre todo en términos de tiempo de computación, por lo que el siguiente bloque de código se limita a cargar los modelos que están almacenados en [la carpeta](github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base) `models/base` previamente ejecutados. De esta forma, podemos generar el presente documento sin necesidad de reentrenar los modelos cada vez.
+```{r}
+table(train$Class) %>% print()
+table(test$Class) %>% print()
+```
+
+
+
+Una vez hechas las preparaciones oportunas, vamos a crear una serie de modelos con los que iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno para cada tipo de kernel, con un vector inicial de costes con los valores `0.001, 0.01, 0.1, 1, 5, 10, 100` y 10 pliegues de validación cruzada. De entre ellos, seleccionaremos los dos tipos kernels que arrojen mejores resultados y haremos un tuneo más en profundidad sobre los hiperparámetros de cada tipo de modelo respectivamente.
+
+Cabe destacar en esta parte del proceso dos puntos sobre los modelos que presentamos a continuación. Por una parte, en general la búsqueda de hiperparámetros es un proceso costoso, sobre todo en términos de tiempo de computación, por lo que el siguiente bloque de código se limita a cargar los modelos que están almacenados en [la carpeta](https://github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base) `models/base` previamente ejecutados y guardados. De esta forma, podemos generar el presente documento sin necesidad de reentrenar los modelos cada vez.
 Por otro lado, debido además a que nuestro ámbito de estudio se centra en presentar las capacidades de `SVM`, no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos, ya que este es un proceso que en términos de tiempo de computación se escapa del alcance de este documento.
 
 ```{r}
@@ -341,64 +373,233 @@ saved_models <- list.files("../models/base/")
 
 # Modelado inicial con kernel lineal
 
-if("tuned_linmod01.Rds" %in% list.files("../models/base/")){
+if("tuned_linmod01.Rds" %in% saved_models){
   tuned_linmod01 <- readRDS("../models/base/tuned_linmod01.Rds")
-  summary(tuned_linmod01) %>% print()
+  print("Modelado inicial con kernel lineal")
+  tuned_linmod01_sum <- summary(tuned_linmod01)
+  tuned_linmod01_sum %>% print()
+  print(paste0("Error promedio: ",tuned_linmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_linmod01_sum$performances$error %>% sd()))
 } else {
-  tuned_linmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "linear",
+  tuned_linmod01 <- tune(svm ,Class ~ ., data = train, kernel = "linear",
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_linmod01,"../models/base/tuned_linmod01.Rds")
   tuned_linmod01 <- readRDS("../models/base/tuned_linmod01.Rds")
-  summary(tuned_linmod01) %>% print()
+  print("Modelado inicial con kernel lineal")
+  tuned_linmod01_sum <- summary(tuned_linmod01)
+  tuned_linmod01_sum %>% print()
+  print(paste0("Error promedio: ",tuned_linmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_linmod01_sum$performances$error %>% sd()))
 }
 
 # Modelado inicial con kernel polinomial
 
-if("tuned_polymod01.Rds" %in% list.files("../models/base/")){
+if("tuned_polymod01.Rds" %in% saved_models){
   tuned_polymod01 <- readRDS("../models/base/tuned_polymod01.Rds")
-  print(summary(tuned_polymod01))
+  print("Modelado inicial con kernel polinomial")
+  tuned_polymod01_sum <- summary(tuned_polymod01)
+  print(tuned_polymod01_sum)
+  print(paste0("Error promedio: ",tuned_polymod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_polymod01_sum$performances$error %>% sd()))
 } else {
-  tuned_polymod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "polynomial",
+  tuned_polymod01 <- tune(svm ,Class ~ ., data = train, kernel = "polynomial",
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        degree = 3,
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_polymod01,"../models/base/tuned_polymod01.Rds")
   tuned_polymod01 <- readRDS("../models/base/tuned_polymod01.Rds")
-  print(summary(tuned_polymod01))
+  print("Modelado inicial con kernel polinomial")
+  tuned_polymod01_sum <- summary(tuned_polymod01)
+  print(tuned_polymod01_sum)
+  print(paste0("Error promedio: ",tuned_polymod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_polymod01_sum$performances$error %>% sd()))
 }
-
 
 # Modelado inicial con kernel radial
 
-if("tuned_radmod01.Rds" %in% list.files("../models/base/")){
+if("tuned_radmod01.Rds" %in% saved_models){
   tuned_radmod01 <- readRDS("../models/base/tuned_radmod01.Rds")
-  summary(tuned_radmod01) %>% print()
+  print("Modelado inicial con kernel radial")
+  tuned_radmod01_sum <- summary(tuned_radmod01)
+  print(tuned_radmod01_sum)
+  print(paste0("Error promedio: ",tuned_radmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod01_sum$performances$error %>% sd()))
 } else {
-  tuned_radmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "radial",
+  tuned_radmod01 <- tune(svm ,Class ~ ., data = train, kernel = "radial",
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_radmod01,"../models/base/tuned_radmod01.Rds")
   tuned_radmod01 <- readRDS("../models/base/tuned_radmod01.Rds")
-  summary(tuned_radmod01) %>% print()
+  print("Modelado inicial con kernel radial")
+  tuned_radmod01_sum <- summary(tuned_radmod01)
+  print(tuned_radmod01_sum)
+  print(paste0("Error promedio: ",tuned_radmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod01_sum$performances$error %>% sd()))
 }
 
-# Modelado inicial con kernel radial
+# Modelado inicial con kernel sigmoidal
 
-if("tuned_sigmod01.Rds" %in% list.files("../models/base/")){
+if("tuned_sigmod01.Rds" %in% saved_models){
   tuned_sigmod01 <- readRDS("../models/base/tuned_sigmod01.Rds")
-  summary(tuned_sigmod01) %>% print()
+  print("Modelado inicial con kernel sigmoidal")
+  tuned_sigmod01_sum <- summary(tuned_sigmod01)
+  print(tuned_sigmod01_sum)
+  print(paste0("Error promedio: ",tuned_sigmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_sigmod01_sum$performances$error %>% sd()))
 } else {
-  tuned_sigmod01 <- tune(svm ,Class ~ ., data = df_final, kernel = "sigmoid",
+  tuned_sigmod01 <- tune(svm ,Class ~ ., data = train, kernel = "sigmoid",
                        ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100) ),
                        tunecontrol = tune.control(cross=10))
   saveRDS(tuned_sigmod01,"../models/base/tuned_sigmod01.Rds")
   tuned_sigmod01 <- readRDS("../models/base/tuned_sigmod01.Rds")
-  summary(tuned_sigmod01) %>% print()
+  print("Modelado inicial con kernel sigmoidal")
+  tuned_sigmod01_sum <- summary(tuned_sigmod01)
+  print(tuned_sigmod01_sum)
+  print(paste0("Error promedio: ",tuned_sigmod01_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_sigmod01_sum$performances$error %>% sd()))
 }
 
 ```
 
+Así, de estas cuatro primeras aproximaciones, vamos a realizar un tuneo con algo más de profundidad para los modelos con kernel lineal y con kernel radial. La decisión de centrarnos en estos dos tipos, en el caso del kernel lineal viene dada por ser el que menor error promedio tiene y se comporta más flexiblemente frente a los cambios de coste. Por otro lado, en el caso del radial, se justifica porque, aunque presenta un error similar con respecto al kernel polinomial, este está influenciado por el error para el coste `0.001`. No obstante esto, es posible que si realizásemos una búsqueda de hiperparámetros con mayor exhaustividad exista un modelo con kernel polinomial más óptimo que el radial seleccionado. Nos limitamos a esta elección, además de apoyada por los argumentos presentados, con el objetivo de limitar el alcance de este estudio.
 
-### Propuesta de mejora con menos variables --> Estudiar correlación.
+### Tuneo de hiperparámetros
 
+Así pues, realizamos a continuación una búsqueda en mayor profundidad de los hiperparámetros para los kernels `lineal` y `radial`. Centraremos la búsqueda en aquellos valores de los costes que nos hayan aportado mejor resultado.
+
+En el caso del kernel `lineal`, vemos que obtenemos errores bajos para los valores del coste entre 1 y 10, por lo que nos centraremos en costes en este entorno. 
+
+```{r}
+# Listado de modelos tuneados guardados
+
+saved_models <- list.files("../models/tuned/")
+
+# Modelado con kernel lineal
+
+if("tuned_linmod02.Rds" %in% saved_models){
+  tuned_linmod02 <- readRDS("../models/tuned/tuned_linmod02.Rds")
+  print("Modelado con kernel lineal")
+  tuned_linmod02_sum <- summary(tuned_linmod02)
+  tuned_linmod02_sum %>% print()
+  print(paste0("Error promedio: ",tuned_linmod02_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_linmod02_sum$performances$error %>% sd()))
+} else {
+  tuned_linmod02 <- tune(svm ,Class ~ ., data = train, kernel = "linear",
+                       ranges =list(cost=seq(from = 1, to = 10, by=0.25) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_linmod02,"../models/tuned/tuned_linmod02.Rds")
+  tuned_linmod01 <- readRDS("../models/tuned/tuned_linmod02.Rds")
+  print("Modelado con kernel lineal")
+  tuned_linmod02_sum <- summary(tuned_linmod02)
+  tuned_linmod02_sum %>% print()
+  print(paste0("Error promedio: ",tuned_linmod02_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_linmod02_sum$performances$error %>% sd()))
+}
+```
+
+En general modelos más sencillos como es el caso del `SVM lineal` que aquí presentamos tendrán mayor sesgo y menor varianza. De este modo, podemos comprobar que el error en este caso se comporta como era esperable. Así, elegiremos arbitrariamente como primer candidato para nuestro modelado al mejor modelo con kernel lineal obtenido, el modelo `tuned_linmod02$best.model` con coste `3.5`.
+
+Por otra parte, en el caso del kernel `radial`, vamos a aplicar una validación cruzada para determinar el mejor valor para los hiperparámetros del coste y de la `gamma`.
+
+```{r}
+
+# Modelado con kernel radial
+
+if("tuned_radmod02.Rds" %in% saved_models){
+  tuned_radmod02 <- readRDS("../models/tuned/tuned_radmod02.Rds")
+  print("Modelado con kernel radial")
+  tuned_radmod02_sum <- summary(tuned_radmod02)
+  print(tuned_radmod02_sum)
+  print(paste0("Error promedio: ",tuned_radmod02_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod02_sum$performances$error %>% sd()))
+} else {
+  tuned_radmod02 <- tune(svm ,Class ~ ., data = train, kernel = "radial",
+                       ranges =list(cost=seq(from = 5, to = 10, by=0.5),
+                                    gamma=seq(from = 0.1, to = 5, by=0.2) ),
+                       tunecontrol = tune.control(cross=10))
+  saveRDS(tuned_radmod02,"../models/tuned/tuned_radmod02.Rds")
+  tuned_radmod02 <- readRDS("../models/tuned/tuned_radmod02.Rds")
+  print("Modelado con kernel radial")
+  tuned_radmod02_sum <- summary(tuned_radmod02)
+  print(tuned_radmod02_sum)
+  print(paste0("Error promedio: ",tuned_radmod02_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod02_sum$performances$error %>% sd()))
+}
+```
+
+Al igual que en el caso anterior, vamos a seleccionar el mejor modelo `tuned_radmod02$best.model` que nos devuelve la validación cruzada, con coste `6.5` y gamma `0.1`. Destacar que aunque ha conllevado un tiempo de ejecución considerable, la búsqueda del gamma no ha arrojado mejores resultados que los iniciales.   
+
+### Propuesta de mejora
+
+A pesar de que las decisiones tomadas anteriormente sobre las elecciones de estrategias, parámetros y modelos son lícitas, hemos visto que existe un margen de mejora en cuanto a la rigurosidad con la que hemos realizado la búsqueda de hiperparámetros. Es por esto que, con la intención de obtener resultados más refinados, nos basaremos en propuestas que podemos encontrar en la bibliografía para comparar con los modelos iniciales obtenidos.
+
+Es por esto que, según se aconseja en [[1](#Ref01)], vamos a realizar una normalización junto con una búsqueda sobre una secuencia exponencial para el parámetro gamma. Compararemos el modelo que obtengamos de este proceso contra los dos obtenidos anteriormente.
+
+Así, comencemos por estandarizar los conjuntos de entrenamiento y test haciendo uso de la misma media y varianza, esto es, las del entrenamiento. El motivo de hacer uso de estos estadísticos en ambos casos es que de otro modo estaríamos "filtrando" información al modelo a la hora de realizar el entrenamiento del mismo.
+
+```{r class.source = 'fold-show'}
+
+# Estandarizamos el conjunto de entrenamiento.
+st_train <- scale(train[,1:(ncol(train)-1)],center = TRUE, scale = TRUE) %>% as.data.frame()
+st_train$Class <- train$Class # Espero estar incluyendo la clase en el mismo orden. Revisar.
+
+# Calculamos el vector de medias y el vector de desviaciones estándar del conjunto train.
+
+means <- train %>% summarise_if(is.numeric, mean)
+st.devs <- train %>% summarise_if(is.numeric, sd)
+
+# Restamos las medias y dividimos por las desviaciones estándar
+st_test <- scale(test[,1:(ncol(test)-1)],center = means, scale = st.devs) %>% as.data.frame()
+st_test$Class <- test$Class 
+
+```
+
+Realizamos a continuación un secuenciado exponencial sobre los hiperparámetros. Como nota, hemos reducido la validación cruzada a cinco pliegues para que el tiempo de computación no sea excesivo.
+
+```{r eval=FALSE}
+# Modelado refinado con kernel radial
+
+if("tuned_radmod03.Rds" %in% saved_models){
+  tuned_radmod03 <- readRDS("../models/tuned/tuned_radmod03.Rds")
+  print("Modelado refinado con kernel radial")
+  tuned_radmod03_sum <- summary(tuned_radmod03)
+  print(tuned_radmod03_sum)
+  print(paste0("Error promedio: ",tuned_radmod03_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod03_sum$performances$error %>% sd()))
+} else {
+  tuned_radmod03 <- tune(svm ,Class ~ ., data = st_train, kernel = "radial",
+                       ranges =list(cost=2**seq(from=-5, to=10),
+                                    gamma=2**seq(from=-5, to=10)),
+                       tunecontrol = tune.control(cross=5))
+  saveRDS(tuned_radmod03,"../models/tuned/tuned_radmod03.Rds")
+  tuned_radmod03 <- readRDS("../models/tuned/tuned_radmod03.Rds")
+  print("Modelado refinado con kernel radial")
+  tuned_radmod03_sum <- summary(tuned_radmod03)
+  print(tuned_radmod03_sum)
+  print(paste0("Error promedio: ",tuned_radmod03_sum$performances$error %>% mean(),
+               ". Desv. típica del error: ", tuned_radmod03_sum$performances$error %>% sd()))
+}
+```
+
+## Comparación de los resultados
+
+## Conclusiones
+
+## Referencias
+
+### Bibliografía
+
+1. [A Practical Guide to Support Vector Classification ](https://www.csie.ntu.edu.tw/~cjlin/papers/guide/guide.pdf){#Ref01}
+2. [Semi-Supervised Classification by Low Density Separation - Section 2.3.2 ](http://www.gatsby.ucl.ac.uk/aistats/fullpapers/198.pdf){#Ref02}
+
+### Recursos y enlaces de interés
+
+* [The Data Science process - Analytixlabs](https://www.analytixlabs.co.in/blog/data-science-process)
+* [Practical guide to outlier detection - Towards data science](https://towardsdatascience.com/practical-guide-to-outlier-detection-methods-6b9f947a161e)
+* [Normalization and standardization of data - Analytics Vidhya ](https://www.analyticsvidhya.com/blog/2020/04/feature-scaling-machine-learning-normalization-standardization/)
+* [Normalization vs Standardization — Quantitative analysis - Towards data science](https://towardsdatascience.com/normalization-vs-standardization-quantitative-analysis-a91e8a79cebf)
+* [RStudio cheatsheets](https://www.rstudio.com/resources/cheatsheets/)
+
+
+[[1](#Ref01)]

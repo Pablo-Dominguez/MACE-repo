@@ -12,6 +12,7 @@ git add source/
 git add docs/
 git add sh/
 git add models/
+git add dbs/model_db/
 echo "Enter commit comment: "
 read input
 # echo "El commit es ${input}"
