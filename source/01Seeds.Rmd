@@ -12,6 +12,8 @@ output:
     code_folding: hide
     includes:
       in_header: header.html
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r message = FALSE}
@@ -23,17 +25,9 @@ library(ggpubr)
 library(pastecs)
 library(kableExtra)
 library (e1071)
-library(lemon)
+library(cvms)
 ```
 
-```{css style settings, echo = FALSE}
-blockquote {
-    padding: 10px 20px;
-    margin: 0 0 20px;
-    font-size: 12px;
-    border-left: 5px solid #eee;
-}
-```
 
 La información completa sobre la generación de este documento puede encontrarse en este [repositorio de GitHub](https://github.com/Pablo-Dominguez/MACE-repo).
 
@@ -363,7 +357,7 @@ table(test$Class) %>% print()
 Una vez hechas las preparaciones oportunas, vamos a crear una serie de modelos con los que iniciaremos nuestra fase de modelado. Crearemos cuatro tuneados, uno para cada tipo de kernel, con un vector inicial de costes con los valores `0.001, 0.01, 0.1, 1, 5, 10, 100` y 10 pliegues de validación cruzada. De entre ellos, seleccionaremos los dos tipos kernels que arrojen mejores resultados y haremos un tuneo más en profundidad sobre los hiperparámetros de cada tipo de modelo respectivamente.
 
 Cabe destacar en esta parte del proceso dos puntos sobre los modelos que presentamos a continuación. Por una parte, en general la búsqueda de hiperparámetros es un proceso costoso, sobre todo en términos de tiempo de computación, por lo que el siguiente bloque de código se limita a cargar los modelos que están almacenados en [la carpeta](https://github.com/Pablo-Dominguez/MACE-repo/tree/main/models/base) `models/base` previamente ejecutados y guardados. De esta forma, podemos generar el presente documento sin necesidad de reentrenar los modelos cada vez.
-Por otro lado, debido además a que nuestro ámbito de estudio se centra en presentar las capacidades de `SVM`, no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos, ya que este es un proceso que en términos de tiempo de computación se escapa del alcance de este documento.
+Por otro lado, debido además a que nuestro ámbito de estudio se centra en presentar las capacidades de `SVM` no realizaremos una búsqueda exhaustiva de los hiperparámetros óptimos, si no una muestra de algunas de las estrategias para encontrarlos.
 
 ```{r}
 
@@ -462,7 +456,9 @@ if("tuned_sigmod01.Rds" %in% saved_models){
 
 ```
 
-Así, de estas cuatro primeras aproximaciones, vamos a realizar un tuneo con algo más de profundidad para los modelos con kernel lineal y con kernel radial. La decisión de centrarnos en estos dos tipos, en el caso del kernel lineal viene dada por ser el que menor error promedio tiene y se comporta más flexiblemente frente a los cambios de coste. Por otro lado, en el caso del radial, se justifica porque, aunque presenta un error similar con respecto al kernel polinomial, este está influenciado por el error para el coste `0.001`. No obstante esto, es posible que si realizásemos una búsqueda de hiperparámetros con mayor exhaustividad exista un modelo con kernel polinomial más óptimo que el radial seleccionado. Nos limitamos a esta elección, además de apoyada por los argumentos presentados, con el objetivo de limitar el alcance de este estudio.
+Así, de estas cuatro primeras aproximaciones, vamos a realizar un tuneo con algo más de profundidad para los modelos con **kernel lineal** y **con kernel radial**. La decisión de centrarnos en estos dos tipos, en el caso del kernel lineal viene justificada por ser el que menor error promedio tiene y se comporta más flexiblemente (tiene mayor sesgo y menor varianza) frente a los cambios de coste. 
+
+En el caso del radial se justifica porque, aunque presenta un error similar con respecto al kernel polinomial, este está influenciado por el error para el coste `0.001`. No obstante esto, es posible que si realizásemos una búsqueda de hiperparámetros con mayor exhaustividad exista un modelo con kernel polinomial más óptimo que el radial seleccionado. Nos limitamos a esta elección, además de apoyada por los argumentos presentados, con el objetivo de limitar el alcance de este estudio.
 
 ### Tuneo de hiperparámetros
 
@@ -534,9 +530,9 @@ Al igual que en el caso anterior, vamos a seleccionar el mejor modelo `tuned_rad
 
 A pesar de que las decisiones tomadas anteriormente sobre las elecciones de estrategias, parámetros y modelos son lícitas, hemos visto que existe un margen de mejora en cuanto a la rigurosidad con la que hemos realizado la búsqueda de hiperparámetros. Es por esto que, con la intención de obtener resultados más refinados, nos basaremos en propuestas que podemos encontrar en la bibliografía para comparar con los modelos iniciales obtenidos.
 
-Es por esto que, según se aconseja en [[1](#Ref01)], vamos a realizar una normalización junto con una búsqueda sobre una secuencia exponencial para el parámetro gamma. Compararemos el modelo que obtengamos de este proceso contra los dos obtenidos anteriormente.
+Es por esto que, según se aconseja en [[A Practical Guide to Support Vector Classification](#Ref01)], vamos a realizar una normalización de las variables junto con una búsqueda de hiperparámetros sobre una secuencia de tipo exponencial. Compararemos el modelo que obtengamos de este proceso contra los dos obtenidos anteriormente.
 
-Así, comencemos por estandarizar los conjuntos de entrenamiento y test haciendo uso de la misma media y varianza, esto es, las del entrenamiento. El motivo de hacer uso de estos estadísticos en ambos casos es que de otro modo estaríamos "filtrando" información al modelo a la hora de realizar el entrenamiento del mismo.
+Así, comenzamos por estandarizar los conjuntos de entrenamiento y test haciendo uso de la misma media y varianza, esto es, las del entrenamiento. El motivo de hacer uso de estos estadísticos en ambos casos es que de otro modo estaríamos "filtrando" información al modelo a la hora de aplicarlo sobre el conjunto test.
 
 ```{r class.source = 'fold-show'}
 
@@ -582,7 +578,33 @@ if("tuned_radmod03.Rds" %in% saved_models){
 }
 ```
 
+Del mismo modo que en los casos anteriores, seleccionaremos el mejor modelo `tuned_radmod03$best.model` que nos devuelve la validación cruzada, con coste `64` y gamma `0.03125`. Con esto tenemos nuestro tercer y último candidato de modelo `SVM` con el que evaluar los resultados contra el conjunto test.
+
+<!-- 
+svmfit <-  svm(st_train$Class~., data=st_train, kernel ="radial",gamma =0.03125, cost=64)
+plot(tuned_radmod03$best.model , st_train, Perimeter ~ Area)
+plot(tuned_radmod03$best.model , st_train, Perimeter ~ Convex_Area)
+plot(svmfit , st_train,  Area ~ Perimeter) # Class must be a factor
+
+probar a ejecutar el svmfit que no salga del tuneado, lo construimos de nuevo.
+ -->
+
+```{r}
+plot(tuned_radmod03$best.model , st_train, Perimeter ~ Convex_Area)
+plot(tuned_radmod02$best.model , st_train, Perimeter ~ Convex_Area)
+```
+
+
 ## Comparación de los resultados
+
+En esta sección final del proceso de modelado de los datos, vamos a presentar una serie de dimensiones o perspectivas del error cometido por cada modelo. Para ello, haremos uso de la **matriz de confusión** de cada uno de los modelos sobre el conjunto de entrenamiento.
+
+```{r}
+confusion_table = confusion_matrix(targets = st_test[,"Class"], 
+                                   predictions = predict(tuned_radmod03$best.model,st_test))
+plot_confusion_matrix(confusion_table$`Confusion Matrix`[[1]], palette = "Greens")
+```
+
 
 ## Conclusiones
 
