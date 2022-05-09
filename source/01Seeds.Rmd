@@ -24,6 +24,7 @@ library(ggplot2)
 library(ggpubr)
 library(pastecs)
 library(kableExtra)
+library(gridExtra)
 library (e1071)
 library(cvms)
 ```
@@ -530,7 +531,7 @@ Al igual que en el caso anterior, vamos a seleccionar el mejor modelo `tuned_rad
 
 A pesar de que las decisiones tomadas anteriormente sobre las elecciones de estrategias, parámetros y modelos son lícitas, hemos visto que existe un margen de mejora en cuanto a la rigurosidad con la que hemos realizado la búsqueda de hiperparámetros. Es por esto que, con la intención de obtener resultados más refinados, nos basaremos en propuestas que podemos encontrar en la bibliografía para comparar con los modelos iniciales obtenidos.
 
-Es por esto que, según se aconseja en [[A Practical Guide to Support Vector Classification](#Ref01)], vamos a realizar una normalización de las variables junto con una búsqueda de hiperparámetros sobre una secuencia de tipo exponencial. Compararemos el modelo que obtengamos de este proceso contra los dos obtenidos anteriormente.
+Es por esto que, según se aconseja en [A Practical Guide to Support Vector Classification](#Ref01), vamos a realizar una normalización de las variables junto con una búsqueda de hiperparámetros sobre una secuencia de tipo exponencial. Compararemos el modelo que obtengamos de este proceso contra los dos obtenidos anteriormente.
 
 Así, comenzamos por estandarizar los conjuntos de entrenamiento y test haciendo uso de la misma media y varianza, esto es, las del entrenamiento. El motivo de hacer uso de estos estadísticos en ambos casos es que de otro modo estaríamos "filtrando" información al modelo a la hora de aplicarlo sobre el conjunto test.
 
@@ -584,29 +585,90 @@ Del mismo modo que en los casos anteriores, seleccionaremos el mejor modelo `tun
 svmfit <-  svm(st_train$Class~., data=st_train, kernel ="radial",gamma =0.03125, cost=64)
 plot(tuned_radmod03$best.model , st_train, Perimeter ~ Area)
 plot(tuned_radmod03$best.model , st_train, Perimeter ~ Convex_Area)
-plot(svmfit , st_train,  Area ~ Perimeter) # Class must be a factor
-
-probar a ejecutar el svmfit que no salga del tuneado, lo construimos de nuevo.
  -->
-
-```{r}
-plot(tuned_radmod03$best.model , st_train, Perimeter ~ Convex_Area)
-plot(tuned_radmod02$best.model , st_train, Perimeter ~ Convex_Area)
-```
 
 
 ## Comparación de los resultados
 
-En esta sección final del proceso de modelado de los datos, vamos a presentar una serie de dimensiones o perspectivas del error cometido por cada modelo. Para ello, haremos uso de la **matriz de confusión** de cada uno de los modelos sobre el conjunto de entrenamiento.
+En esta sección final del proceso de modelado de los datos, vamos a presentar una serie de dimensiones o perspectivas del error cometido por cada modelo. Para ello, haremos uso de la **matriz de confusión** de cada uno de los modelos sobre el conjunto de entrenamiento. Además, aprovecharemos la función `cvms::confusion_matrix` que nos permite mostrar tanto estas matrices de manera sencilla y visual. Los modelos que vamos a comparar son el `tuned_linmod02`, el `tuned_radmod02` y el `tuned_radmod03`.
 
 ```{r}
-confusion_table = confusion_matrix(targets = st_test[,"Class"], 
-                                   predictions = predict(tuned_radmod03$best.model,st_test))
-plot_confusion_matrix(confusion_table$`Confusion Matrix`[[1]], palette = "Greens")
+
+# Matriz de confusión modelo lineal
+
+confusion_table_lin = confusion_matrix(targets = st_test[,"Class"], 
+                                   predictions = predict(tuned_linmod02$best.model,st_test),
+                                   metrics = list("Accuracy" = TRUE))
+p1 <- plot_confusion_matrix(confusion_table_lin$`Confusion Matrix`[[1]], palette = "Greens") + ggtitle("Plot of tuned_linmod02")+theme(plot.title = element_text(size = 12))
+
+# Matriz de confusión modelo con kernel radial
+
+confusion_table_rad02 = confusion_matrix(targets = st_test[,"Class"], 
+                                   predictions = predict(tuned_radmod02$best.model,st_test),
+                                   metrics = list("Accuracy" = TRUE))
+p2 <- plot_confusion_matrix(confusion_table_rad02$`Confusion Matrix`[[1]], palette = "Greens") + ggtitle("Plot of tuned_radmod02")+theme(plot.title = element_text(size = 12))
+
+# Matriz de confusión modelo con kernel radial 03
+
+confusion_table_rad03 = confusion_matrix(targets = st_test[,"Class"], 
+                                   predictions = predict(tuned_radmod03$best.model,st_test),
+                                   metrics = list("Accuracy" = TRUE))
+p3 <- plot_confusion_matrix(confusion_table_rad03$`Confusion Matrix`[[1]], palette = "Greens") + ggtitle("Plot of tuned_radmod03")+theme(plot.title = element_text(size = 12))
+
+
+grid.arrange(p1,p2,p3, ncol=3)
 ```
 
+Así, este tipo de representaciones de los resultados nos aporta información sobre la precisión del modelo. Concretamente, nos representa los valores reales contra los valores que el modelo predice para cada clase. De este modo podemos estudiar desde diversas perspectivas la precisión de los mismos. Las medidas más usuales que se extraen de la matriz de confusión suelen ser:
+
+* **Exactitud** o _accuracy_: Esta nos mide el porcentaje de aciertos que marca nuestro modelo sobre el total predicho. Es decir, es una medida de "cómo de bueno" es nuestro modelo a la hora de acertar.
+* **Sensibilidad** y **especificidad**: Esta mide la proporción de casos correctamente clasificados dentro de todos los que debería haber clasificado correctamente. Es decir, es una medida de la fiabilidad del modelo a la hora de clasificar correctamente una semilla dentro de una misma clase.
+* **Precisión** y **precisión inversa**: Esta última medida representa la proporción de casos positivos (o de una misma clase) detectados correctamente.
+
+Con estas medidas en mente, presentamos a continuación una comparativa para los modelos  anteriormente mencionados.
+
+```{r}
+acc <- c(confusion_table_lin$`Accuracy`[[1]], 
+         confusion_table_rad02$`Accuracy`[[1]],
+         confusion_table_rad03$`Accuracy`[[1]])
+
+sens <- c(confusion_table_lin$`Sensitivity`[[1]], 
+         confusion_table_rad02$`Sensitivity`[[1]],
+         confusion_table_rad03$`Sensitivity`[[1]])
+
+pos_pred <- c(confusion_table_lin$`Pos Pred Value`[[1]], 
+         confusion_table_rad02$`Pos Pred Value`[[1]],
+         confusion_table_rad03$`Pos Pred Value`[[1]])
+
+neg_pred <- c(confusion_table_lin$`Neg Pred Value`[[1]], 
+         confusion_table_rad02$`Neg Pred Value`[[1]],
+         confusion_table_rad03$`Neg Pred Value`[[1]])
+
+results_df <- data.frame(acc,sens,pos_pred,neg_pred)
+colnames(results_df) <- c("Accuracy","Sensitivity", "Pos Pred Value","Neg Pred Value")
+rownames(results_df) <- c("tuned_linmod02","tuned_radmod02","tuned_radmod03")
+results_df %>% kbl()%>% kable_minimal("hover", full_width = F)
+```
+
+Tal y como se muestra en esta tabla, comprobamos que en todos los casos el modelo `tuned_radmod03` es el que obtiene las mejores métricas. No obstante, esta afirmación se deben añadir dos aclaraciones. 
+
+Por una parte, es cierto que el modelo `tuned_radmod02` obtiene mejores resultados en cuanto a sensibilidad se refiere, pero esto es un dato que puede llevarnos a una incorrecta interpretación de los resultados. Si nos fijamos en la matriz de confusión de este modelo, vemos que este predice todas las observaciones como pertenecientes a la categoría *Ürgüp Sivrisi*, por lo que siendo esta medida la proporción de  *Ürgüp Sivrisi* correctamente predichos sobre el total de los predichos en esta categoría, es obvio que este valor debe dar uno. Por ello, aunque esta métrica sea más alta para este modelo, no es indicativo de que el modelo clasifique con mayor acierto con respecto a los otros casos.
+
+Por otro lado, vemos que:
+
+* La exactitud, o proporción de semillas clasificadas apropiadamente, es mayor para el modelo `tuned_radmod03` con un `0.9040`.
+* La sensibilidad, o proporción de semillas *Ürgüp Sivrisi* clasificadas correctamente con respecto al total de las de esta categoría, es mayor también para el modelo `tuned_radmod03` con un `0.8694158`. Es decir, este es el modelo que mejor clasifica esta clase.
+* Al igual que en los casos anteriores, la precisión o proporción de semillas correctamente predichas con respecto a las clasificadas como pertenecientes a la categoría *Ürgüp Sivrisi*, el modelo `tuned_radmod03` obtiene una métrica del `0.9200000`. 
+
+Por tanto, podemos comprobar que el modelo `tuned_radmod03` es el que clasifica obteniendo métricas mejores.
 
 ## Conclusiones
+
+La elaboración de este informe nos ha permitido llegar a dos conclusiones principales. 
+
+Por un lado, hemos podido aplicar los conocimientos adquiridos para realizar una puesta en práctica del aprendizaje automático y la ciencia del dato. Comenzamos con una limpieza y procesamiento de los datos, siguiendo con una etapa de modelado y tuneo de los hiperparámetros y finalizando este proceso con una presentación de los resultados obtenidos. Vemos así que los procedimientos que se enmarcan en torno a este tipo de algoritmos tienen un carácter *vivo*, en el sentido de que conllevan una evaluación y mejora continua del proceso de modelado para obtener un modelo que se adapte a los objetivos del estudio.
+
+Finalmente, hemos podido comprobar también que apoyándonos en literatura y estrategias con mayor respaldo científico se pueden obtener resultados más acertados. Este es el caso de nuestro modelo `tuned_radmod03`, del que aplicando las recomendaciones que figuran en [[A Practical Guide to Support Vector Classification](#Ref01), pags. 3,5] se han obtenido un modelado más adecuado para nuestro estudio.
 
 ## Referencias
 
@@ -624,3 +686,10 @@ plot_confusion_matrix(confusion_table$`Confusion Matrix`[[1]], palette = "Greens
 * [RStudio cheatsheets](https://www.rstudio.com/resources/cheatsheets/)
 
 
+<!-- 
+Notas:
+Para mejorar cuánto se ve el plot, hay tres aproximaciones:
+1. Comprobar cómo de bueno es el plot, y hacerlo desde direcciones aleatorias (o desde los ejes) -> A posteriori
+2. Mejorar el plot con alguna estrategia numérica -> A posteriori
+3. Calcular la mejor direccion y plotearlo desde ahí -> A priori
+-->
