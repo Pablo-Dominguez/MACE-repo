@@ -53,6 +53,7 @@ options(scipen=999) # desactivamos la notación científica
 options(max.print=100) # limitamos la longitud de los print
 
 df <- readxl::read_excel("../dbs/Pumpkin_Seeds_Dataset/Pumpkin_Seeds_Dataset.xlsx")
+attach(df)
 table(df$Class)
 ```
 
